@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>课堂情绪检查器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="课堂情绪检查器首页">
+      <span class="brand-mark">🙂</span><span>课堂情绪检查器<small>CLASSROOM PULSE</small></span>
+    </a>
+    <nav id="mainNav" class="main-nav" aria-label="主导航"></nav>
+    <div class="account-area">
+      <span id="connectionStatus" class="connection"><i></i>正在连接</span>
+      <span id="accountName" class="account-name"></span>
+      <button id="changePasswordButton" class="button button-quiet" hidden>修改密码</button>
+      <button id="logoutButton" class="button button-quiet" hidden>退出</button>
+      <button id="openLoginButton" class="button button-dark">登录</button>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section id="authView" class="auth-layout">
+      <div class="auth-intro">
+        <div class="eyebrow"><span class="pulse-dot"></span>课堂反馈 · 即时可见</div>
+        <h1>让每一种课堂感受，<br><em>都有被听见的方式。</em></h1>
+        <p>轻轻选一个表情，帮助老师了解课程节奏，也让自己的学习轨迹留下真实记录。</p>
+        <div class="emotion-preview" aria-label="情绪类型">
+          <span>😊</span><span>😕</span><span>😐</span><span>😔</span><span>🤔</span><span>🤩</span>
+          <b>6 种课堂感受</b>
+        </div>
+        <div class="auth-note"><span class="note-icon">↗</span>登录后进入你的课堂空间</div>
+      </div>
+      <div class="auth-panel">
+        <div class="panel-heading"><span class="panel-label">WELCOME BACK</span><h2 id="authTitle">登录课堂空间</h2><p id="authSubtitle">使用老师或学生账号继续</p></div>
+        <form id="authForm" class="form-stack">
+          <label>用户名<input id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="输入用户名"></label>
+          <label>密码<input id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="8" placeholder="至少 8 位"></label>
+          <div id="registerFields" hidden>
+            <label>姓名<input id="authFullName" name="full_name" autocomplete="name" placeholder="课堂中显示的姓名"></label>
+            <label>邮箱（可选）<input id="authEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com"></label>
+          </div>
+          <p id="authError" class="form-message" role="alert" hidden></p>
+          <button id="authSubmit" class="button button-primary button-wide" type="submit">登录</button>
+        </form>
+        <button id="switchAuthMode" class="text-button">还没有账号？注册学生账号</button>
+        <div class="demo-access"><b>演示账号</b><span>学生 student · 教师 teacher · 管理员 admin</span><small>演示密码均为对应用户名 + 12345</small></div>
+      </div>
+    </section>
+
+    <section id="studentView" class="app-view" hidden>
+      <div class="welcome-row"><div><div class="eyebrow"><span class="pulse-dot"></span>STUDENT SPACE</div><h1>今天的课堂，感觉如何？</h1><p>你的反馈只用于理解课堂整体体验。</p></div><div id="studentDate" class="date-stamp"></div></div>
+      <div class="student-grid">
+        <section class="surface checkin-panel">
+          <div class="section-top"><div><span class="panel-label">QUICK CHECK-IN</span><h2>此刻的感受</h2></div><span id="activeSessionBadge" class="status-badge">选择课堂</span></div>
+          <label class="field-label" for="studentSessionSelect">正在参与的课堂</label>
+          <select id="studentSessionSelect" class="select-control"></select>
+          <div id="sessionInfo" class="session-info">选择已安排的课堂后即可记录。</div>
+          <div id="emotionChoices" class="emotion-grid"></div>
+          <div id="checkinMessage" class="inline-message" role="status" aria-live="polite">选择最贴近你此刻感受的表情</div>
+        </section>
+        <section class="surface student-summary">
+          <div class="section-top"><div><span class="panel-label">YOUR PULSE</span><h2>我的课堂记录</h2></div><span class="summary-icon">◷</span></div>
+          <div class="summary-number"><strong id="studentRecordCount">0</strong><span>条记录</span></div>
+          <p id="studentSummaryText" class="muted">你的反馈会显示在这里。</p>
+          <div id="studentTopEmotion" class="top-emotion"><span>—</span><b>等待第一条记录</b></div>
+          <button class="button button-outline button-wide" data-view="history">查看全部记录</button>
+        </section>
+      </div>
+      <section class="surface history-surface">
+        <div class="section-top"><div><span class="panel-label">RECENT CHECK-INS</span><h2>最近的记录</h2></div><button class="text-button" data-view="history">完整历史 <span aria-hidden="true">→</span></button></div>
+        <div id="studentRecentHistory" class="record-list"></div>
+      </section>
+    </section>
+
+    <section id="historyView" class="app-view" hidden>
+      <div class="page-heading"><div><div class="eyebrow">PERSONAL HISTORY</div><h1>我的课堂记录</h1><p>按时间回看自己的情绪变化。</p></div><button class="button button-outline" data-view="student">返回课堂</button></div>
+      <section class="surface"><div id="fullHistory" class="record-list"></div></section>
+    </section>
+
+    <section id="teacherView" class="app-view" hidden>
+      <div class="page-heading"><div><div class="eyebrow"><span class="pulse-dot"></span>TEACHER DASHBOARD</div><h1>课堂情绪看板</h1><p>查看你所授课堂的实时反馈与历史分布。</p></div><div class="refresh-status"><span class="live-indicator"></span><span id="lastUpdated">等待数据</span></div></div>
+      <section class="filter-bar surface">
+        <label>课堂<select id="teacherSessionSelect" class="select-control"></select></label>
+        <label>课程<select id="teacherCourseFilter" class="select-control"><option value="">全部课程</option></select></label>
+        <label>班级<select id="teacherClassFilter" class="select-control"><option value="">全部班级</option></select></label>
+        <label>开始日期<input id="teacherFromFilter" type="date" class="select-control"></label>
+        <label>结束日期<input id="teacherToFilter" type="date" class="select-control"></label>
+        <button id="teacherApplyFilter" class="button button-dark">更新视图</button>
+      </section>
+      <div class="metric-grid teacher-metrics">
+        <article class="metric-card"><span>近一小时反馈</span><strong id="metricTotal">0</strong><small>条情绪记录</small></article>
+        <article class="metric-card metric-positive"><span>积极感受</span><strong id="metricPositive">0%</strong><small>开心与兴奋</small></article>
+        <article class="metric-card metric-focus"><span>专注状态</span><strong id="metricFocused">0%</strong><small>专注与投入</small></article>
+        <article class="metric-card metric-attendance"><span>课堂参与</span><strong id="metricStudents">0</strong><small>已安排学生</small></article>
+      </div>
+      <div class="dashboard-grid">
+        <section class="surface chart-surface"><div class="section-top"><div><span class="panel-label">LIVE TREND</span><h2>近 60 分钟情绪变化</h2></div><span class="chart-legend"><i></i>积极 <i class="legend-focus"></i>专注 <i class="legend-concern"></i>待关注</span></div><canvas id="trendChart" height="230" aria-label="课堂情绪变化图"></canvas><div id="chartEmpty" class="chart-empty" hidden>当前时间范围暂无课堂反馈</div></section>
+        <section class="surface distribution-surface"><div class="section-top"><div><span class="panel-label">EMOTION MIX</span><h2>情绪分布</h2></div></div><div id="emotionDistribution" class="distribution-list"></div></section>
+      </div>
+      <section class="surface"><div class="section-top"><div><span class="panel-label">LIVE STREAM</span><h2>最新课堂反馈</h2></div><span class="muted">每 10 秒自动更新</span></div><div id="teacherRecent" class="record-list"></div></section>
+      <section class="surface"><div class="section-top"><div><span class="panel-label">SESSION HISTORY</span><h2>课堂历史统计</h2></div></div><div class="table-wrap"><table><thead><tr><th>课程</th><th>班级</th><th>上课时间</th><th>反馈数</th></tr></thead><tbody id="sessionStatsTable"></tbody></table></div></section>
+    </section>
+
+    <section id="adminView" class="app-view" hidden>
+      <div class="page-heading"><div><div class="eyebrow">SYSTEM ADMINISTRATION</div><h1>课堂数据管理</h1><p>管理用户、课程安排，并查看汇总反馈。</p></div><a class="button button-outline" href="/api/docs" target="_blank" rel="noreferrer">API 文档 ↗</a></div>
+      <div class="admin-tabs" role="tablist">
+        <button class="admin-tab active" data-admin-tab="overview" role="tab">数据概览</button>
+        <button class="admin-tab" data-admin-tab="schedule" role="tab">课堂排课</button>
+        <button class="admin-tab" data-admin-tab="users" role="tab">用户管理</button>
+        <button class="admin-tab" data-admin-tab="records" role="tab">记录与导出</button>
+      </div>
+      <div id="adminOverview" class="admin-section">
+        <div class="metric-grid admin-metrics">
+          <article class="metric-card"><span>注册用户</span><strong id="adminUserCount">0</strong><small>学生、教师与管理员</small></article>
+          <article class="metric-card metric-positive"><span>课堂总记录</span><strong id="adminRecordCount">0</strong><small>手动与 AI 汇总</small></article>
+          <article class="metric-card metric-focus"><span>进行中课堂</span><strong id="adminActiveCount">0</strong><small>当前开放反馈</small></article>
+          <article class="metric-card metric-attendance"><span>课程数量</span><strong id="adminCourseCount">0</strong><small>已创建课程</small></article>
+        </div>
+        <div class="dashboard-grid"><section class="surface"><div class="section-top"><div><span class="panel-label">SCHOOL PULSE</span><h2>整体情绪分布</h2></div></div><div id="adminDistribution" class="distribution-list"></div></section><section class="surface"><div class="section-top"><div><span class="panel-label">RECENT RECORDS</span><h2>最新反馈</h2></div></div><div id="adminRecent" class="record-list"></div></section></div>
+      </div>
+      <div id="adminSchedule" class="admin-section" hidden>
+        <div class="dashboard-grid schedule-grid">
+          <section class="surface"><div class="section-top"><div><span class="panel-label">NEW SESSION</span><h2>创建课堂安排</h2></div></div>
+            <form id="sessionForm" class="form-stack compact-form">
+              <label>课程<select id="scheduleCourse" name="course_id" required></select></label>
+              <label>班级<input name="class_name" required placeholder="例如：2024级软件工程1班"></label>
+              <label>教室<input name="room" placeholder="例如：教学楼 A203"></label>
+              <label>开始时间<input name="starts_at" type="datetime-local" required></label>
+              <label>结束时间<input name="ends_at" type="datetime-local" required></label>
+              <label>状态<select name="status"><option value="scheduled">待开始</option><option value="active">开放记录</option><option value="ended">已结束</option></select></label>
+              <button class="button button-primary">创建课堂</button><p id="sessionFormMessage" class="inline-message" role="status"></p>
+            </form>
+          </section>
+          <section class="surface"><div class="section-top"><div><span class="panel-label">COURSES</span><h2>新增课程</h2></div></div>
+            <form id="courseForm" class="form-stack compact-form">
+              <label>课程编号<input name="course_code" required placeholder="SE-201"></label>
+              <label>课程名称<input name="name" required placeholder="课程名称"></label>
+              <label>授课教师<select id="courseTeacher" name="teacher_id" required></select></label>
+              <button class="button button-dark">新增课程</button><p id="courseFormMessage" class="inline-message" role="status"></p>
+            </form>
+          </section>
+        </div>
+        <section class="surface"><div class="section-top"><div><span class="panel-label">SESSION ROSTER</span><h2>安排课堂学生</h2></div></div><div class="schedule-controls"><label>课堂<select id="rosterSessionSelect" class="select-control"></select></label><span id="rosterCount" class="muted"></span></div><div id="studentRoster" class="roster-grid"></div><button id="saveScheduleButton" class="button button-primary">保存名单</button><span id="scheduleMessage" class="inline-message" role="status"></span></section>
+        <section class="surface"><div class="section-top"><div><span class="panel-label">UPCOMING CLASSES</span><h2>课堂安排</h2></div></div><div class="table-wrap"><table><thead><tr><th>课程</th><th>班级</th><th>教室</th><th>时间</th><th>状态</th><th>人数</th></tr></thead><tbody id="adminSessionsTable"></tbody></table></div></section>
+      </div>
+      <div id="adminUsers" class="admin-section" hidden>
+        <section class="surface"><div class="section-top"><div><span class="panel-label">USER DIRECTORY</span><h2>用户列表</h2></div><span class="muted">可更改角色与账号状态</span></div><div class="table-wrap"><table><thead><tr><th>姓名</th><th>用户名</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead><tbody id="usersTable"></tbody></table></div></section>
+      </div>
+      <div id="adminRecords" class="admin-section" hidden>
+        <section class="surface"><div class="section-top"><div><span class="panel-label">EMOTION RECORDS</span><h2>记录查询</h2></div><button id="exportCsvButton" class="button button-primary" type="button">导出 CSV</button></div>
+          <div class="filter-bar record-filters">
+            <label>课程<select id="adminRecordCourse" class="select-control"><option value="">全部课程</option></select></label>
+            <label>班级<select id="adminRecordClass" class="select-control"><option value="">全部班级</option></select></label>
+            <label>课堂<select id="adminRecordSession" class="select-control"></select></label>
+            <label>来源<select id="adminRecordSource" class="select-control"><option value="">全部来源</option><option value="MANUAL">手动</option><option value="AI">AI</option></select></label>
+            <label>开始日期<input id="adminRecordFrom" type="date" class="select-control"></label>
+            <label>结束日期<input id="adminRecordTo" type="date" class="select-control"></label>
+            <button id="adminRecordSearch" class="button button-dark">查询</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>姓名</th><th>课程 / 班级</th><th>情绪</th><th>时间</th><th>来源</th><th>置信度</th></tr></thead><tbody id="adminRecordsTable"></tbody></table></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><span>课堂情绪检查器</span><span>尊重感受 · 保护隐私 · 改善课堂</span></footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="changePasswordDialog" class="password-dialog">
+    <form id="passwordForm" class="form-stack">
+      <div class="dialog-heading"><div><span class="panel-label">ACCOUNT SECURITY</span><h2>修改密码</h2></div><button id="closePasswordDialog" class="text-button" type="button">关闭</button></div>
+      <label>当前密码<input name="old_password" type="password" autocomplete="current-password" required></label>
+      <label>新密码<input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="muted">新密码至少 8 个字符。修改后需要重新登录。</p>
+      <p id="passwordMessage" class="form-message" role="alert" hidden></p>
+      <button id="savePasswordButton" class="button button-primary">保存新密码</button>
+    </form>
+  </dialog>
+  <script src="script.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-5000}:5000"
+    volumes:
+      - emoji_data:/app/data
+
+volumes:
+  emoji_data:
