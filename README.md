@@ -107,6 +107,7 @@ tests/               API 集成与安全用例
 
 更多设计与实验材料：
 
+- [实验报告](docs/experiment-report.md)
 - [需求规格说明书](docs/requirements.md)
 - [系统设计与 ER 模型](docs/design.md)
 - [用户手册](docs/user-guide.md)
