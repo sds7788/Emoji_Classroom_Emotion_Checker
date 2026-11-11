@@ -1,0 +1,69 @@
+{
+  "started_at": "2026-11-11T22:37:03+08:00",
+  "camera": "Chromium synthetic camera",
+  "model": "simulated predictions; no external API calls",
+  "steps": [
+    {
+      "name": "管理员识别入口与课次ID",
+      "status": "passed",
+      "actual": "入口可用；课次ID直接显示"
+    },
+    {
+      "name": "浏览器画面与emoji对应",
+      "status": "passed",
+      "actual": "合成摄像头实时预览；开心😊、91%、对应采样缩略图与匿名入库成功",
+      "screenshot": "01-live-result.png"
+    },
+    {
+      "name": "低置信度显示",
+      "status": "passed",
+      "actual": "显示困惑😕和40%，明确标注未入库",
+      "screenshot": "02-low-confidence.png"
+    },
+    {
+      "name": "无人脸不沿用上一结果",
+      "status": "passed",
+      "actual": "清除旧emoji与置信度，显示无人脸提示"
+    },
+    {
+      "name": "模型错误与密钥保护",
+      "status": "passed",
+      "actual": "显示请求失败与HTTP401，页面不包含密钥"
+    },
+    {
+      "name": "停止释放设备并停止采样",
+      "status": "passed",
+      "actual": "视频轨道ended；后续无新请求；清除采样图像"
+    },
+    {
+      "name": "390px实时识别布局",
+      "status": "passed",
+      "actual": "摄像头与结果纵向排列，无页面水平溢出",
+      "screenshot": "03-mobile.png"
+    },
+    {
+      "name": "切换页面停止采集",
+      "status": "passed",
+      "actual": "切换数据概览后摄像头轨道释放"
+    },
+    {
+      "name": "未配置模型的引导",
+      "status": "passed",
+      "actual": "提示在服务端配置并重启，禁用开始按钮"
+    },
+    {
+      "name": "摄像头权限拒绝",
+      "status": "passed",
+      "actual": "给出可操作提示，恢复开始按钮"
+    },
+    {
+      "name": "浏览器脚本异常",
+      "status": "passed",
+      "actual": "pageerror为0"
+    }
+  ],
+  "browser": "Chromium 158.0.8127.18",
+  "status": "passed",
+  "finished_at": "2026-11-11T22:37:15+08:00",
+  "page_errors": []
+}

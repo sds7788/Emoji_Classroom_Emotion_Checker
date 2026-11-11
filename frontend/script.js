@@ -92,6 +92,7 @@ function emotion(type) {
 function showAuth(message = '') {
   stopPolling();
   closeDashboardSocket();
+  closeAiMonitor();
   setAuthMode(false);
   $$('.app-view').forEach((view) => { view.hidden = true; });
   $('#authView').hidden = false;
@@ -388,26 +389,26 @@ function queryFilters(prefix) {
 async function loadTeacherDashboard() {
   if (!$('#teacherView') || $('#teacherView').hidden) return;
   const sessionId = $('#teacherSessionSelect').value;
+  const params = queryFilters('teacher');
+  params.delete('session_id');
+  const filters = params.toString();
   try {
     let realtime = null;
     if (sessionId) realtime = await api(`/admin/dashboard/realtime?sessionId=${encodeURIComponent(sessionId)}`);
-    const params = queryFilters('teacher');
-    if (params.has('session_id')) params.delete('session_id');
     const stats = await api(`/admin/statistics${params.size ? `?${params}` : ''}`);
+    const currentFilters = queryFilters('teacher');
+    currentFilters.delete('session_id');
+    if ($('#teacherView').hidden || $('#teacherSessionSelect').value !== sessionId || currentFilters.toString() !== filters) return;
     renderDistribution($('#emotionDistribution'), stats.emotions);
-    $('#metricTotal').textContent = realtime?.total_last_hour ?? 0;
-    const total = stats.total || 0;
-    const counts = Object.fromEntries(stats.emotions.map((item) => [item.type, item.count]));
-    $('#metricPositive').textContent = `${total ? Math.round(((counts.happy + counts.excited) / total) * 100) : 0}%`;
-    $('#metricFocused').textContent = `${total ? Math.round(((counts.focused) / total) * 100) : 0}%`;
+    $('#teacherHistorySummary').textContent = `课程、班级和日期筛选共 ${stats.total} 条反馈`;
     const selected = state.sessions.find((item) => String(item.id) === sessionId);
     $('#metricStudents').textContent = selected?.student_count ?? '—';
     if (realtime) {
-      renderTrend($('#trendChart'), realtime.trend);
-      $('#chartEmpty').hidden = Boolean(realtime.total_last_hour);
-      $('#teacherRecent').innerHTML = recordRows(realtime.recent);
-      $('#lastUpdated').textContent = `更新于 ${formatDate(realtime.generated_at)}`;
+      renderLiveUpdate(realtime);
     } else {
+      $('#metricTotal').textContent = '0';
+      $('#metricPositive').textContent = '0%';
+      $('#metricFocused').textContent = '0%';
       renderTrend($('#trendChart'), []);
       $('#chartEmpty').hidden = false;
       $('#teacherRecent').innerHTML = recordRows([]);
@@ -471,7 +472,7 @@ function connectDashboardSocket(sessionId, target = 'teacher') {
 }
 
 function renderLiveUpdate(realtime) {
-  if (!realtime || $('#teacherView').hidden) return;
+  if (!realtime || $('#teacherView').hidden || String(realtime.session.id) !== $('#teacherSessionSelect').value) return;
   renderTrend($('#trendChart'), realtime.trend);
   $('#chartEmpty').hidden = Boolean(realtime.total_last_hour);
   $('#metricTotal').textContent = realtime.total_last_hour;
@@ -567,12 +568,12 @@ async function loadAdmin() {
 function refreshAdminSelectors() {
   const sessionOptions = state.adminSessions.map((item) =>
     `<option value="${item.id}">${escapeHtml(item.course_name)} · ${escapeHtml(item.class_name)} · ${formatDate(item.starts_at)}</option>`).join('');
-  [['rosterSessionSelect', '选择课堂'], ['adminRecordSession', '全部课堂'], ['adminLiveSessionSelect', '选择实时课堂']].forEach(([id, label]) => {
+  [['rosterSessionSelect', '选择课堂'], ['adminRecordSession', '全部课堂'], ['adminLiveSessionSelect', '选择实时课堂'], ['aiSessionSelect', '选择识别课次']].forEach(([id, label]) => {
     const select = $(`#${id}`);
     const previous = select.value;
     select.innerHTML = `<option value="">${label}</option>${sessionOptions}`;
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
-    if (id === 'adminLiveSessionSelect' && !select.value && state.adminSessions.length) {
+    if ((id === 'adminLiveSessionSelect' || id === 'aiSessionSelect') && !select.value && state.adminSessions.length) {
       select.value = String((state.adminSessions.find((item) => item.status === 'active') || state.adminSessions[0]).id);
     }
   });
@@ -596,6 +597,8 @@ function refreshAdminSelectors() {
 async function loadAdminTab() {
   stopPolling();
   closeDashboardSocket();
+  closeAiMonitor();
+  if (state.activeAdminTab === 'ai') return loadAiMonitor();
   if (state.activeAdminTab === 'overview') {
     startPolling(loadAdminOverview);
     return loadAdminOverview();

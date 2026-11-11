@@ -7,7 +7,6 @@ import io
 import logging
 import os
 import re
-import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -18,7 +17,13 @@ from flask_cors import CORS
 from flask_sock import Sock
 
 from backend import services
+from backend.auth import token_user
+from backend.ai_web import register_ai_web
+from backend.config import load_local_env
 from backend.database import EMOTIONS, Repository
+from backend.realtime import stream_dashboard
+
+load_local_env()
 
 
 ROLE_LABELS = {"student": "学生", "teacher": "教师", "admin": "管理员"}
@@ -31,6 +36,11 @@ def create_app(test_config=None):
         JWT_ACCESS_TOKEN_EXPIRES=timedelta(hours=8),
         AI_SERVICE_TOKEN=os.environ.get("AI_SERVICE_TOKEN", ""),
         AI_CONFIDENCE_THRESHOLD=float(os.environ.get("AI_CONFIDENCE_THRESHOLD", "0.55")),
+        AI_API_KEY=os.environ.get("AI_API_KEY", ""),
+        AI_BASE_URL=os.environ.get("AI_BASE_URL", "https://api.openai.com/v1"),
+        AI_MODEL=os.environ.get("AI_MODEL", "gpt-4o-mini"),
+        AI_SAMPLE_INTERVAL_SECONDS=max(1, float(os.environ.get("AI_SAMPLE_INTERVAL_SECONDS", "5"))),
+        MAX_CONTENT_LENGTH=2 * 1024 * 1024,
         DATABASE_PATH=os.environ.get("DATABASE_PATH", "data/emotion_checker.db"),
         SEED_DEMO_DATA=os.environ.get("SEED_DEMO_DATA", "true").lower() == "true",
         ADMIN_BOOTSTRAP_TOKEN=os.environ.get("ADMIN_BOOTSTRAP_TOKEN", ""),
@@ -70,11 +80,7 @@ def create_app(test_config=None):
         if not header.startswith("Bearer "):
             return None, error("请先登录", 401)
         try:
-            payload = jwt.decode(header[7:], app.config["SECRET_KEY"], algorithms=["HS256"])
-            user = db.get_user_by_id(payload["user_id"])
-            full_user = db.get_user_by_username(payload["username"])
-            if not user or user["status"] != "active" or full_user["token_version"] != payload.get("token_version"):
-                return None, error("登录凭证已失效", 401)
+            user = token_user(db, header[7:], app.config["SECRET_KEY"])
             return user, None
         except jwt.ExpiredSignatureError:
             return None, error("登录已过期，请重新登录", 401)
@@ -315,26 +321,11 @@ def create_app(test_config=None):
     @sockets.route("/ws/dashboard")
     def dashboard_websocket(ws):
         try:
-            subscription = request.get_json(silent=True) or __import__("json").loads(ws.receive(timeout=10) or "{}")
-            payload = jwt.decode(subscription.get("token", ""), app.config["SECRET_KEY"], algorithms=["HS256"])
-            user = db.get_user_by_id(payload["user_id"])
-            full_user = db.get_user_by_username(payload["username"])
-            session_id = int(subscription.get("session_id"))
-            if (not user or not full_user or user["status"] != "active"
-                    or full_user["token_version"] != payload.get("token_version")
-                    or user["role"] not in {"teacher", "admin"}
-                    or not services.can_access_session(db, user, session_id)):
-                ws.send(__import__("json").dumps({"error": "无权订阅该课堂"}, ensure_ascii=False))
-                return
-            while True:
-                dashboard = services.realtime_dashboard(db, session_id)
-                if dashboard is None:
-                    break
-                dashboard["generated_at"] = db.now()
-                ws.send(__import__("json").dumps({"data": dashboard}, ensure_ascii=False))
-                time.sleep(5)
+            stream_dashboard(ws, db, app.config["SECRET_KEY"])
         except Exception as exc:
             app.logger.info("Dashboard websocket closed: %s", exc)
+
+    register_ai_web(app, db, authenticated, response, error, current_user_from_token)
 
     @app.get("/api/admin/users")
     @authenticated({"admin"})
@@ -442,7 +433,7 @@ def create_app(test_config=None):
         for item in records:
             cells = [item["id"], item["user_name"], item["course_name"], item["class_name"], item["emoji_type"],
                      item["emoji"], item["recorded_at"], item["source"], item["confidence"], item["session_id"]]
-            safe = [f"'{value}" if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")) else value for value in cells]
+            safe = [services.csv_safe_cell(value) for value in cells]
             writer.writerow(safe)
         db.audit(user["id"], "export_csv", "emoji_records", detail=f"rows={len(records)}")
         filename = f"emoji-records-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.csv"
@@ -469,32 +460,29 @@ def create_app(test_config=None):
         threshold = app.config["AI_CONFIDENCE_THRESHOLD"]
         if confidence < threshold:
             return response({"accepted": False, "threshold": threshold}, message="置信度低于阈值，已丢弃")
-        session = db.one("SELECT id, starts_at, ends_at, status FROM class_sessions WHERE id = ?", (session_id,))
-        if not session:
-            return error("课堂不存在", 404)
         try:
-            starts = datetime.fromisoformat(session["starts_at"])
-            ends = datetime.fromisoformat(session["ends_at"])
-            if starts.tzinfo is None:
-                starts = starts.replace(tzinfo=timezone.utc)
-            if ends.tzinfo is None:
-                ends = ends.replace(tzinfo=timezone.utc)
-        except ValueError:
-            return error("课堂时间设置无效", 409)
-        now = datetime.now(timezone.utc)
-        if session["status"] != "active" or not (starts <= now <= ends):
-            return error("当前课堂未开放 AI 情绪记录", 409)
+            services.require_open_ai_session(db, session_id)
+        except LookupError as exc:
+            return error(str(exc), 404)
+        except RuntimeError as exc:
+            return error(str(exc), 409)
         try:
             recorded_at = parse_iso(data.get("recorded_at", db.now()), "recorded_at")
         except ValueError as exc:
             return error(str(exc))
-        record_id, _ = db.execute(
-            "INSERT INTO emoji_records (user_id, session_id, emoji_type, recorded_at, source, confidence, device_id) "
-            "VALUES (NULL, ?, ?, ?, 'AI', ?, ?)",
-            (session_id, emoji_type, recorded_at, confidence, str(data.get("device_id", "ai-service"))[:80]),
-        )
+        result = services.save_ai_result(db, session_id, emoji_type, confidence, data.get("device_id", "ai-service"), recorded_at)
         app.logger.info("AI result accepted session=%s type=%s confidence=%.3f", session_id, emoji_type, confidence)
-        return response({"id": record_id, "accepted": True}, 201, "AI 情绪结果已保存")
+        return response(result, 201, "AI 情绪结果已保存")
+
+    @app.after_request
+    def protect_ai_responses(result):
+        if request.path.startswith("/api/admin/ai/"):
+            result.headers["Cache-Control"] = "no-store, private"
+        return result
+
+    @app.errorhandler(413)
+    def request_too_large(_exc):
+        return error("请求数据过大，请缩小摄像头采样画面", 413)
 
     @app.errorhandler(404)
     def not_found(_exc):

@@ -14,6 +14,9 @@ __pycache__/
 
 # 开发环境文件
 .env
+.venv/
+.pytest_cache/
+/artifacts/
 
 # 本地 SQLite 与备份文件
 /data/*.db

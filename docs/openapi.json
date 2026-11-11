@@ -2,12 +2,12 @@
   "openapi": "3.0.3",
   "info": {
     "title": "课堂情绪检查器 API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "课堂情绪手动记录、课程安排、教师看板和独立 AI 推理结果入库接口。所有时间使用 ISO 8601 格式；普通接口统一返回 code、message、data。"
   },
   "servers": [
     {
-      "url": "http://localhost:5000"
+      "url": "/"
     }
   ],
   "tags": [
@@ -542,7 +542,7 @@
         "tags": [
           "教师看板"
         ],
-        "summary": "WebSocket 实时订阅。连接后首条消息发送 {token, session_id}，之后每 5 秒推送看板数据。",
+        "summary": "WebSocket 实时订阅。首条消息发送 {token, session_id}，每 5 秒推送前复核 JWT 有效期、状态、令牌版本、角色和课堂权限；失效发送 error 并关闭。",
         "responses": {
           "101": {
             "description": "WebSocket 升级成功"
@@ -993,6 +993,106 @@
           },
           "403": {
             "description": "需要管理员权限"
+          }
+        }
+      }
+    },
+    "/api/admin/ai/status": {
+      "get": {
+        "tags": [
+          "管理员"
+        ],
+        "summary": "读取网页摄像头识别配置，不返回密钥",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "data 包含 configured、model、threshold、interval；禁止缓存"
+          },
+          "401": {
+            "description": "未登录或令牌失效"
+          },
+          "403": {
+            "description": "仅管理员可用"
+          }
+        }
+      }
+    },
+    "/api/admin/ai/analyze": {
+      "post": {
+        "tags": [
+          "管理员"
+        ],
+        "summary": "识别管理员浏览器采样帧并匿名保存达标结果",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "调用前后复核课次和管理员权限；图像仅在内存中处理，不返回或存储图像；默认最多一个模型请求并发。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "session_id",
+                  "image"
+                ],
+                "properties": {
+                  "session_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "当前开放且在有效上课时间内的课次ID"
+                  },
+                  "image": {
+                    "type": "string",
+                    "pattern": "^data:image/jpeg;base64,",
+                    "maxLength": 750000,
+                    "description": "JPEG Data URL，网页按比例缩小至最多640×480；解码分辨率上限1920×1080"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "未入库：返回 no_face_detected、low_confidence、no_supported_emotion 或 invalid_model_output"
+          },
+          "201": {
+            "description": "已匿名入库：data 含 id、accepted、emoji_type、emoji、label、confidence、samples、session_id、model、generated_at"
+          },
+          "400": {
+            "description": "采样参数或JPEG无效"
+          },
+          "401": {
+            "description": "登录令牌失效，包括识别期间撤销"
+          },
+          "403": {
+            "description": "仅管理员可用"
+          },
+          "404": {
+            "description": "课次不存在"
+          },
+          "409": {
+            "description": "课次未开放、已结束或时间无效"
+          },
+          "413": {
+            "description": "请求或图像过大"
+          },
+          "429": {
+            "description": "已有模型请求正在处理"
+          },
+          "502": {
+            "description": "模型请求失败或响应无效"
+          },
+          "503": {
+            "description": "模型未配置或OpenCV依赖不可用"
           }
         }
       }

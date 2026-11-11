@@ -1,0 +1,61 @@
+test_backend_threshold_is_authoritative (test_ai.AiPipelineTests.test_backend_threshold_is_authoritative) ... ok
+test_low_confidence_and_invalid_response_never_call_ingestion (test_ai.AiPipelineTests.test_low_confidence_and_invalid_response_never_call_ingestion) ... ok
+test_mock_model_success_reaches_real_api_database_statistics_and_export (test_ai.AiPipelineTests.test_mock_model_success_reaches_real_api_database_statistics_and_export) ... [2026-11-11 22:28:34,669] INFO in app: AI result accepted session=1 type=focused confidence=0.910
+ok
+test_model_http_error_does_not_write (test_ai.AiPipelineTests.test_model_http_error_does_not_write) ... ok
+test_invalid_model_results_are_discarded (test_ai.PredictionTests.test_invalid_model_results_are_discarded) ... ok
+test_valid_prediction_and_threshold_boundary (test_ai.PredictionTests.test_valid_prediction_and_threshold_boundary) ... ok
+test_once_success_writes_only_structured_evidence_and_releases_camera (test_ai.WorkerTests.test_once_success_writes_only_structured_evidence_and_releases_camera) ... ok
+test_once_without_face_exits_two_and_releases_camera (test_ai.WorkerTests.test_once_without_face_exits_two_and_releases_camera) ... ok
+test_request_error_evidence_does_not_include_exception_secrets (test_ai.WorkerTests.test_request_error_evidence_does_not_include_exception_secrets) ... Inference failed type=HTTPError http_status=401
+ok
+test_single_sample_fails_promptly_if_camera_cannot_read (test_ai.WorkerTests.test_single_sample_fails_promptly_if_camera_cannot_read) ... Camera frame unavailable; retrying
+ok
+test_actual_frame_encoding_and_mock_model_are_saved_anonymously (test_ai_web.BrowserAiTests.test_actual_frame_encoding_and_mock_model_are_saved_anonymously) ... ok
+test_concurrent_model_call_is_rejected_and_slot_is_released (test_ai_web.BrowserAiTests.test_concurrent_model_call_is_rejected_and_slot_is_released) ... ok
+test_invalid_accepted_predictions_never_save (test_ai_web.BrowserAiTests.test_invalid_accepted_predictions_never_save) ... ok
+test_invalid_images_are_rejected (test_ai_web.BrowserAiTests.test_invalid_images_are_rejected) ... ok
+test_low_confidence_has_emoji_but_is_not_saved (test_ai_web.BrowserAiTests.test_low_confidence_has_emoji_but_is_not_saved) ... ok
+test_missing_and_closed_sessions_are_rejected_before_inference (test_ai_web.BrowserAiTests.test_missing_and_closed_sessions_are_rejected_before_inference) ... ok
+test_missing_configuration_is_reported_without_model_call (test_ai_web.BrowserAiTests.test_missing_configuration_is_reported_without_model_call) ... ok
+test_missing_model_fields_return_502_instead_of_session_404 (test_ai_web.BrowserAiTests.test_missing_model_fields_return_502_instead_of_session_404) ... ok
+test_model_http_failure_is_redacted_and_does_not_save (test_ai_web.BrowserAiTests.test_model_http_failure_is_redacted_and_does_not_save) ... [2026-11-11 22:28:35,436] WARNING in ai_web: Browser AI inference failed type=HTTPError status=401
+ok
+test_no_face_frame_does_not_call_model_or_save (test_ai_web.BrowserAiTests.test_no_face_frame_does_not_call_model_or_save) ... ok
+test_oversized_body_and_resolution_are_rejected (test_ai_web.BrowserAiTests.test_oversized_body_and_resolution_are_rejected) ... ok
+test_session_closed_while_model_is_running_cannot_save (test_ai_web.BrowserAiTests.test_session_closed_while_model_is_running_cannot_save) ... ok
+test_status_and_sampling_are_admin_only (test_ai_web.BrowserAiTests.test_status_and_sampling_are_admin_only) ... ok
+test_token_revoked_while_model_is_running_cannot_save (test_ai_web.BrowserAiTests.test_token_revoked_while_model_is_running_cannot_save) ... ok
+test_admin_multidimensional_statistics_and_realtime_keep_teacher_scope (test_api.EmojiCheckerApiTests.test_admin_multidimensional_statistics_and_realtime_keep_teacher_scope) ... ok
+test_admin_schedule_and_student_session_access (test_api.EmojiCheckerApiTests.test_admin_schedule_and_student_session_access) ... ok
+test_ai_token_threshold_privacy_and_export_formula_safety (test_api.EmojiCheckerApiTests.test_ai_token_threshold_privacy_and_export_formula_safety) ... [2026-11-11 22:28:38,389] INFO in app: AI result accepted session=1 type=focused confidence=0.910
+ok
+test_ai_worker_discards_frames_without_detected_faces (test_api.EmojiCheckerApiTests.test_ai_worker_discards_frames_without_detected_faces) ... ok
+test_demo_login_manual_checkin_history_and_statistics (test_api.EmojiCheckerApiTests.test_demo_login_manual_checkin_history_and_statistics) ... ok
+test_expired_invitation_and_invalid_registration_input_are_rejected (test_api.EmojiCheckerApiTests.test_expired_invitation_and_invalid_registration_input_are_rejected) ... ok
+test_first_admin_bootstrap_is_atomic_and_stays_closed_after_role_changes (test_api.EmojiCheckerApiTests.test_first_admin_bootstrap_is_atomic_and_stays_closed_after_role_changes) ... ok
+test_openapi_and_health (test_api.EmojiCheckerApiTests.test_openapi_and_health) ... ok
+test_password_change_revokes_existing_token (test_api.EmojiCheckerApiTests.test_password_change_revokes_existing_token) ... ok
+test_privileged_registration_uses_role_bound_single_use_invitations (test_api.EmojiCheckerApiTests.test_privileged_registration_uses_role_bound_single_use_invitations) ... ok
+test_teacher_scope_and_admin_rbac (test_api.EmojiCheckerApiTests.test_teacher_scope_and_admin_rbac) ... ok
+test_dotenv_is_loaded_from_project_root_and_shell_variables_win (test_config.ConfigTests.test_dotenv_is_loaded_from_project_root_and_shell_variables_win) ... ok
+test_disabled_account_stops_existing_stream (test_realtime.RealtimeTests.test_disabled_account_stops_existing_stream) ... ok
+test_password_change_stops_existing_stream (test_realtime.RealtimeTests.test_password_change_stops_existing_stream) ... ok
+test_reassigned_course_stops_existing_stream (test_realtime.RealtimeTests.test_reassigned_course_stops_existing_stream) ... ok
+test_role_change_stops_existing_stream (test_realtime.RealtimeTests.test_role_change_stops_existing_stream) ... ok
+test_subscription_rejects_invalid_payloads_and_student_role (test_realtime.RealtimeTests.test_subscription_rejects_invalid_payloads_and_student_role) ... ok
+test_expired_mismatched_and_incomplete_tokens_rejected (test_security.SecurityTests.test_expired_mismatched_and_incomplete_tokens_rejected) ... ok
+test_export_permissions_and_csv_round_trip (test_security.SecurityTests.test_export_permissions_and_csv_round_trip) ... ok
+test_nonfinite_ai_confidence_never_enters_database (test_security.SecurityTests.test_nonfinite_ai_confidence_never_enters_database) ... ok
+test_sql_injection_login_and_filter_parameters (test_security.SecurityTests.test_sql_injection_login_and_filter_parameters) ... ok
+test_weak_passwords_rejected_at_registration_and_change (test_security.SecurityTests.test_weak_passwords_rejected_at_registration_and_change) ... ok
+test_csv_formula_prefixes_and_control_characters (test_services.ServiceTests.test_csv_formula_prefixes_and_control_characters) ... ok
+test_last_active_admin_is_protected_and_role_changes_revoke_tokens (test_services.ServiceTests.test_last_active_admin_is_protected_and_role_changes_revoke_tokens) ... ok
+test_realtime_window_buckets_counts_and_recent_agree (test_services.ServiceTests.test_realtime_window_buckets_counts_and_recent_agree) ... ok
+test_schedule_replacement_is_validated_and_deduplicated (test_services.ServiceTests.test_schedule_replacement_is_validated_and_deduplicated) ... ok
+test_scope_history_and_stats_resist_injected_filter_values (test_services.ServiceTests.test_scope_history_and_stats_resist_injected_filter_values) ... ok
+
+----------------------------------------------------------------------
+Ran 51 tests in 17.951s
+
+OK

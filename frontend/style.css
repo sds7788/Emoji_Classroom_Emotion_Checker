@@ -271,4 +271,44 @@ tbody tr:last-child td { border-bottom: 0; }
   .account-area .button { padding-inline: 7px; }
   .main-nav { gap: 24px; }
 }
+.ai-controls .section-top p { margin: 8px 0 0; }
+.ai-filter-bar { padding: 0; margin: 22px 0 14px; flex-wrap: wrap; }
+.ai-filter-bar label:first-child { flex: 2; min-width: 230px; }
+.ai-filter-bar label:nth-child(2) { flex: 1; min-width: 180px; }
+.ai-status { padding: 8px 12px; border-radius: 99px; background: #edf1f2; color: var(--ink-soft); white-space: nowrap; font-size: 11px; }
+.ai-status.active { background: var(--green-soft); color: var(--green); }
+.ai-info-line { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.ai-live-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 20px; align-items: stretch; }
+.ai-camera-card, .ai-result-card { min-width: 0; }
+.ai-video-stage { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; overflow: hidden; background: #112d32; border-radius: 12px; color: #c4dbdb; }
+.ai-video-stage video { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
+.ai-video-placeholder { text-align: center; display: flex; align-items: center; flex-direction: column; gap: 12px; padding: 20px; }
+.ai-video-placeholder svg { color: #759c9d; margin-bottom: 8px; }
+.ai-video-placeholder strong { color: #e4efef; font-size: 17px; font-weight: 500; }
+.ai-video-placeholder span { font-size: 12px; color: #95b3b5; }
+.ai-video-live { position: absolute; top: 16px; left: 16px; display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 1.5px; color: #fff; background: #143c38dc; border: 1px solid #45756b; padding: 7px 10px; border-radius: 99px; }
+.ai-video-live i { width: 6px; height: 6px; border-radius: 50%; background: #74d9ad; }
+.ai-camera-caption { margin: 15px 0 0; font-size: 11px; line-height: 1.8; }
+.ai-emotion-result { text-align: center; padding: 12px 0 22px; }
+.ai-result-emoji { width: 116px; height: 116px; display: inline-flex; align-items: center; justify-content: center; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 70px; line-height: 1; border-radius: 32px; background: #f3f7ef; margin-bottom: 14px; color: var(--teal); }
+.ai-emotion-result h3 { font-size: 25px; margin: 0 0 9px; }
+.ai-emotion-result p { font-size: 12px; color: var(--muted); line-height: 1.9; margin: 0 auto; max-width: 290px; min-height: 44px; }
+.ai-result-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+.ai-result-metrics > div { display: flex; flex-direction: column; gap: 8px; }
+.ai-result-metrics span { font-size: 11px; color: var(--muted); }
+.ai-result-metrics strong { font-size: 26px; color: var(--teal-dark); }
+.ai-confidence-track { height: 5px; margin: 16px 0 22px; overflow: hidden; background: #edf2f1; border-radius: 8px; }
+.ai-confidence-track i { display: block; width: 0; height: 100%; background: var(--teal); transition: width .3s ease; }
+.ai-sample-row { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; }
+.ai-sample-row img { width: 96px; height: 72px; object-fit: contain; border-radius: 8px; background: #112d32; }
+.ai-sample-row strong { font-size: 12px; }
+.ai-sample-row p { font-size: 10px; color: var(--muted); margin: 7px 0 0; line-height: 1.5; }
+.ai-privacy-note { font-size: 11px; line-height: 1.9; margin: 18px 2px 0; }
+@media (max-width: 950px) { .ai-live-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) {
+  .ai-filter-bar label:first-child, .ai-filter-bar label:nth-child(2) { min-width: 0; width: 100%; }
+  .ai-controls .section-top { flex-wrap: wrap; }
+  .ai-video-placeholder strong { font-size: 14px; }
+  .ai-video-placeholder span { font-size: 11px; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

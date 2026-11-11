@@ -8,6 +8,49 @@ from datetime import datetime, timedelta, timezone
 from backend.database import EMOTIONS
 
 
+def csv_safe_cell(value):
+    if isinstance(value, str) and (value.startswith(("\t", "\r", "\n"))
+                                 or value.lstrip().startswith(("=", "+", "-", "@"))):
+        return "'" + value
+    return value
+
+
+class AISessionNotFound(LookupError):
+    pass
+
+
+class AISessionClosed(RuntimeError):
+    pass
+
+
+def require_open_ai_session(db, session_id):
+    session = db.one("SELECT id, starts_at, ends_at, status FROM class_sessions WHERE id = ?", (session_id,))
+    if not session:
+        raise AISessionNotFound("课堂不存在")
+    try:
+        starts = datetime.fromisoformat(session["starts_at"])
+        ends = datetime.fromisoformat(session["ends_at"])
+        if starts.tzinfo is None:
+            starts = starts.replace(tzinfo=timezone.utc)
+        if ends.tzinfo is None:
+            ends = ends.replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise AISessionClosed("课堂时间设置无效") from exc
+    if session["status"] != "active" or not starts <= datetime.now(timezone.utc) <= ends:
+        raise AISessionClosed("当前课堂未开放 AI 情绪记录")
+    return session
+
+
+def save_ai_result(db, session_id, emoji_type, confidence, device_id, recorded_at=None):
+    require_open_ai_session(db, session_id)
+    record_id, _ = db.execute(
+        "INSERT INTO emoji_records (user_id, session_id, emoji_type, recorded_at, source, confidence, device_id) "
+        "VALUES (NULL, ?, ?, ?, 'AI', ?, ?)",
+        (session_id, emoji_type, recorded_at or db.now(), confidence, str(device_id)[:80]),
+    )
+    return {"id": record_id, "accepted": True}
+
+
 def register_user(db, username, password_hash, role, full_name, email, registration_code, bootstrap_token):
     """Create an account and consume its invitation in one serialized transaction."""
     with db.connection() as connection:
@@ -222,23 +265,25 @@ def realtime_dashboard(db, session_id):
     )
     if not session:
         return None
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    window_start = now - timedelta(minutes=60)
     records = db.all(
-        "SELECT emoji_type, recorded_at, source FROM emoji_records WHERE session_id = ? AND recorded_at >= ? ORDER BY recorded_at",
-        (session_id, (datetime.now(timezone.utc) - timedelta(minutes=60)).isoformat(timespec="seconds")),
+        "SELECT emoji_type, recorded_at, source FROM emoji_records "
+        "WHERE session_id = ? AND recorded_at >= ? AND recorded_at <= ? ORDER BY recorded_at",
+        (session_id, window_start.isoformat(timespec="seconds"), now.isoformat(timespec="seconds")),
     )
     counts = {key: 0 for key in EMOTIONS}
     for row in records:
         counts[row["emoji_type"]] += 1
-    now = datetime.now(timezone.utc)
-    bucket_start = now.replace(minute=(now.minute // 5) * 5, second=0, microsecond=0) - timedelta(minutes=55)
+    bucket_start = window_start
     buckets = []
     for offset in range(12):
         start = bucket_start + timedelta(minutes=offset * 5)
-        buckets.append({"time": start.isoformat(timespec="minutes"), **{key: 0 for key in EMOTIONS}})
+        buckets.append({"time": start.isoformat(timespec="seconds"), **{key: 0 for key in EMOTIONS}})
     for row in records:
         try:
             recorded = datetime.fromisoformat(row["recorded_at"])
-            index = int((recorded - bucket_start).total_seconds() // 300)
+            index = min(11, int((recorded - bucket_start).total_seconds() // 300))
             if 0 <= index < len(buckets):
                 buckets[index][row["emoji_type"]] += 1
         except (TypeError, ValueError):
@@ -246,8 +291,8 @@ def realtime_dashboard(db, session_id):
     recent = db.all(
         "SELECT r.id, r.user_id, COALESCE(u.full_name, '匿名 AI 汇总') AS user_name, r.emoji_type, "
         "r.recorded_at, r.source, r.confidence FROM emoji_records r LEFT JOIN users u ON u.id = r.user_id "
-        "WHERE r.session_id = ? AND r.recorded_at >= ? ORDER BY r.recorded_at DESC LIMIT 30",
-        (session_id, (now - timedelta(minutes=60)).isoformat(timespec="seconds")),
+        "WHERE r.session_id = ? AND r.recorded_at >= ? AND r.recorded_at <= ? ORDER BY r.recorded_at DESC, r.id DESC LIMIT 30",
+        (session_id, window_start.isoformat(timespec="seconds"), now.isoformat(timespec="seconds")),
     )
     for item in recent:
         emoji, label = EMOTIONS[item["emoji_type"]]
@@ -272,14 +317,26 @@ def list_users(db):
 
 
 def update_user(db, user_id, role=None, status=None):
-    user = db.get_user_by_id(user_id)
-    if not user:
-        return None
-    role = role or user["role"]
-    status = status or user["status"]
-    if role not in {"student", "teacher", "admin"} or status not in {"active", "disabled"}:
-        raise ValueError("角色或账号状态无效")
-    db.execute("UPDATE users SET role = ?, status = ? WHERE id = ?", (role, status, user_id))
+    with db.connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        user = connection.execute("SELECT role, status FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user is None:
+            return None
+        role = user["role"] if role is None else role
+        status = user["status"] if status is None else status
+        if (not isinstance(role, str) or role not in {"student", "teacher", "admin"}
+                or not isinstance(status, str) or status not in {"active", "disabled"}):
+            raise ValueError("角色或账号状态无效")
+        if user["role"] == "admin" and user["status"] == "active" and (role != "admin" or status != "active"):
+            remaining = connection.execute(
+                "SELECT COUNT(*) FROM users WHERE role = 'admin' AND status = 'active' AND id != ?", (user_id,),
+            ).fetchone()[0]
+            if not remaining:
+                raise ValueError("不能停用或降级最后一名启用的管理员")
+        connection.execute(
+            "UPDATE users SET role = ?, status = ?, token_version = token_version + ? WHERE id = ?",
+            (role, status, int(role != user["role"] or status != user["status"]), user_id),
+        )
     return db.get_user_by_id(user_id)
 
 
@@ -311,7 +368,7 @@ def create_session(db, data):
 def schedule_students(db, session_id, user_ids):
     if not db.one("SELECT id FROM class_sessions WHERE id = ?", (session_id,)):
         return False, "课堂不存在"
-    if not isinstance(user_ids, list) or any(not isinstance(item, int) for item in user_ids):
+    if not isinstance(user_ids, list) or any(type(item) is not int for item in user_ids):
         return False, "user_ids 必须是整数列表"
     if user_ids:
         placeholders = ",".join("?" for _ in user_ids)

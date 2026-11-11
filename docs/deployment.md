@@ -6,12 +6,14 @@
 
 ```powershell
 python -m pip install -r requirements.txt
-$env:JWT_SECRET = "替换为随机高熵密钥"
+python -m scripts.setup_local
 $env:DATABASE_PATH = "data/emotion_checker.db"
 python -m backend.app
 ```
 
 SQLite Schema 在第一次启动时幂等应用。不要把数据库文件、API Key 或 `.env` 提交到 Git。
+
+建议在虚拟环境运行，跨平台命令见 [README](../README.md)。`scripts.setup_local` 只在根目录 `.env` 不存在时生成配置和随机密钥，不覆盖已有文件。后端和AI均自动读取 `.env`，外部环境变量优先；模型配置和现场验证见 [AI接入指南](ai-integration.md)。本次当前WSL的新虚拟环境安装及浏览器流程已完成，目标演示电脑仍须按 [验收模板](acceptance-record.md) 独立核验。
 
 ## 创建首个管理员
 
@@ -32,6 +34,8 @@ python -m backend.app
 ## Docker Compose
 
 将 `.env.example` 复制成 `.env`，替换 `JWT_SECRET` 和 `AI_SERVICE_TOKEN`。空 `AI_API_KEY` 不影响普通服务。然后执行 `docker compose up --build -d`，访问 `http://localhost:5000`。命名卷 `emoji_data` 持久化 SQLite 数据。查看日志：`docker compose logs -f app`；停止服务：`docker compose down`。
+
+也可先运行 `python -m scripts.setup_local` 自动生成密钥。当前WSL未启用Docker Desktop集成，未完成真实容器验收；如采用Docker，请在目标电脑开启相应集成并执行构建、`docker compose ps`、`curl http://localhost:5000/health`、日志检查，再重启容器确认数据保留。不要使用 `docker compose down -v`，该命令会删除命名卷。
 
 ## 生产配置
 

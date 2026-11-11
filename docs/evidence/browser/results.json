@@ -1,0 +1,72 @@
+{
+  "started_at": "2026-11-11T22:38:16+08:00",
+  "python": "3.13.11",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "ai_verification": "simulated API ingestion only; no real camera or external model",
+  "steps": [
+    {
+      "name": "管理员创建课程、课次并保存名单",
+      "expected": "创建成功且安排1名学生",
+      "actual": "新课次已安排1名学生",
+      "status": "passed",
+      "screenshot": "01-schedule.png"
+    },
+    {
+      "name": "学生提交与个人历史",
+      "expected": "专注记录成功并显示手动来源",
+      "actual": "专注记录已显示",
+      "status": "passed",
+      "screenshot": "02-student.png"
+    },
+    {
+      "name": "教师实时更新与历史筛选口径",
+      "expected": "近一小时2条、积极50%、专注50%，昨日分布保持1条",
+      "actual": "全部满足，历史分布未被实时推送覆盖",
+      "status": "passed",
+      "screenshot": "03-teacher.png"
+    },
+    {
+      "name": "管理员课程、班级统计和实时看板",
+      "expected": "筛选总数2、实时总数2",
+      "actual": "两个区域均为2",
+      "status": "passed",
+      "screenshot": "04-admin.png"
+    },
+    {
+      "name": "模拟AI过滤、匿名入库、看板与CSV下载",
+      "expected": "低置信度丢弃；达标结果进入看板并导出1条匿名AI记录",
+      "actual": "全部满足；仅验证模拟接口结果，未调用真实模型",
+      "status": "passed",
+      "screenshot": "05-export.png"
+    },
+    {
+      "name": "真实WebSocket停用撤权",
+      "expected": "既有连接下一次推送前拒绝访问",
+      "actual": "收到error并结束订阅",
+      "status": "passed"
+    },
+    {
+      "name": "真实WebSocket令牌过期",
+      "expected": "连接建立后JWT过期，下一次推送拒绝访问",
+      "actual": "收到error并结束订阅",
+      "status": "passed"
+    },
+    {
+      "name": "390px窄屏",
+      "expected": "页面无水平溢出",
+      "actual": "无水平溢出",
+      "status": "passed",
+      "screenshot": "06-mobile.png"
+    },
+    {
+      "name": "浏览器脚本异常",
+      "expected": "0条pageerror",
+      "actual": "0条pageerror",
+      "status": "passed"
+    }
+  ],
+  "browser": "Chromium 158.0.8127.18",
+  "status": "passed",
+  "finished_at": "2026-11-11T22:38:52+08:00",
+  "page_errors": []
+}

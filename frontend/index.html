@@ -87,22 +87,23 @@
     <section id="teacherView" class="app-view" hidden>
       <div class="page-heading"><div><div class="eyebrow"><span class="pulse-dot"></span>TEACHER DASHBOARD</div><h1>课堂情绪看板</h1><p>查看你所授课堂的实时反馈与历史分布。</p></div><div class="refresh-status"><span class="live-indicator"></span><span id="lastUpdated">等待数据</span></div></div>
       <section class="filter-bar surface">
-        <label>课堂<select id="teacherSessionSelect" class="select-control"></select></label>
+        <label>实时课堂<select id="teacherSessionSelect" class="select-control"></select></label>
         <label>课程<select id="teacherCourseFilter" class="select-control"><option value="">全部课程</option></select></label>
         <label>班级<select id="teacherClassFilter" class="select-control"><option value="">全部班级</option></select></label>
         <label>开始日期<input id="teacherFromFilter" type="date" class="select-control"></label>
         <label>结束日期<input id="teacherToFilter" type="date" class="select-control"></label>
         <button id="teacherApplyFilter" class="button button-dark">更新视图</button>
       </section>
+      <p class="muted">下方指标、趋势和最新反馈均为所选课堂近 60 分钟的数据；课程、班级和日期用于历史分布与课堂历史统计。</p>
       <div class="metric-grid teacher-metrics">
         <article class="metric-card"><span>近一小时反馈</span><strong id="metricTotal">0</strong><small>条情绪记录</small></article>
-        <article class="metric-card metric-positive"><span>积极感受</span><strong id="metricPositive">0%</strong><small>开心与兴奋</small></article>
-        <article class="metric-card metric-focus"><span>专注状态</span><strong id="metricFocused">0%</strong><small>专注与投入</small></article>
+        <article class="metric-card metric-positive"><span>近一小时积极感受</span><strong id="metricPositive">0%</strong><small>开心与兴奋占比</small></article>
+        <article class="metric-card metric-focus"><span>近一小时专注状态</span><strong id="metricFocused">0%</strong><small>专注反馈占比</small></article>
         <article class="metric-card metric-attendance"><span>课堂参与</span><strong id="metricStudents">0</strong><small>已安排学生</small></article>
       </div>
       <div class="dashboard-grid">
         <section class="surface chart-surface"><div class="section-top"><div><span class="panel-label">LIVE TREND</span><h2>近 60 分钟情绪变化</h2></div><span class="chart-legend"><i></i>积极 <i class="legend-focus"></i>专注 <i class="legend-concern"></i>待关注</span></div><canvas id="trendChart" height="230" aria-label="课堂情绪变化图"></canvas><div id="chartEmpty" class="chart-empty" hidden>当前时间范围暂无课堂反馈</div></section>
-        <section class="surface distribution-surface"><div class="section-top"><div><span class="panel-label">EMOTION MIX</span><h2>情绪分布</h2></div></div><div id="emotionDistribution" class="distribution-list"></div></section>
+        <section class="surface distribution-surface"><div class="section-top"><div><span class="panel-label">HISTORY MIX</span><h2>历史筛选情绪分布</h2><p id="teacherHistorySummary" class="muted">等待统计</p></div></div><div id="emotionDistribution" class="distribution-list"></div></section>
       </div>
       <section class="surface"><div class="section-top"><div><span class="panel-label">LIVE STREAM</span><h2>最新课堂反馈</h2></div><span class="muted">每 10 秒自动更新</span></div><div id="teacherRecent" class="record-list"></div></section>
       <section class="surface"><div class="section-top"><div><span class="panel-label">SESSION HISTORY</span><h2>课堂历史统计</h2></div></div><div class="table-wrap"><table><thead><tr><th>课程</th><th>班级</th><th>上课时间</th><th>反馈数</th></tr></thead><tbody id="sessionStatsTable"></tbody></table></div></section>
@@ -112,6 +113,7 @@
       <div class="page-heading"><div><div class="eyebrow">SYSTEM ADMINISTRATION</div><h1>课堂数据管理</h1><p>管理用户、课程安排，并查看汇总反馈。</p></div><a class="button button-outline" href="/api/docs" target="_blank" rel="noreferrer">API 文档 ↗</a></div>
       <div class="admin-tabs" role="tablist">
         <button class="admin-tab active" data-admin-tab="overview" role="tab">数据概览</button>
+        <button class="admin-tab" data-admin-tab="ai" role="tab">AI 实时识别</button>
         <button class="admin-tab" data-admin-tab="schedule" role="tab">课堂排课</button>
         <button class="admin-tab" data-admin-tab="users" role="tab">用户管理</button>
         <button class="admin-tab" data-admin-tab="records" role="tab">记录与导出</button>
@@ -150,6 +152,38 @@
           <div class="dashboard-grid"><div class="chart-surface"><div class="section-top"><h3>近 60 分钟情绪变化</h3><span class="chart-legend"><i></i>积极 <i class="legend-focus"></i>专注 <i class="legend-concern"></i>待关注</span></div><canvas id="adminLiveTrend" height="230" aria-label="所选课堂近一小时实时情绪趋势图，单位为反馈条数"></canvas><div id="adminLiveEmpty" class="chart-empty" hidden>近一小时暂无反馈</div></div><div id="adminLiveDistribution" class="distribution-list"></div></div>
           <h3>最新课堂反馈</h3><div id="adminRecent" class="record-list"></div>
         </section>
+      </div>
+      <div id="adminAi" class="admin-section" hidden>
+        <section class="surface ai-controls">
+          <div class="section-top"><div><span class="panel-label">LIVE AI CAMERA</span><h2>让课堂感受，即时可见</h2><p class="muted">开启此电脑的摄像头，实时预览画面并查看 AI 情绪结果。</p></div><span id="aiStatusBadge" class="ai-status" role="status">摄像头未开启</span></div>
+          <div class="filter-bar ai-filter-bar">
+            <label>识别课次<select id="aiSessionSelect" class="select-control"><option value="">选择课堂</option></select></label>
+            <label>摄像头<select id="aiCameraSelect" class="select-control"><option value="">默认摄像头</option></select></label>
+            <button id="aiStartButton" class="button button-primary" type="button">开启摄像头并识别</button>
+            <button id="aiStopButton" class="button button-outline" type="button" disabled>停止识别</button>
+          </div>
+          <div class="ai-info-line"><span id="aiSessionInfo">请选择当前开放的课次</span><span id="aiModelInfo">正在读取模型配置</span></div>
+          <p id="aiCameraMessage" class="inline-message" role="status" aria-live="polite">选择课次后开启摄像头，首次使用请允许浏览器访问摄像头。</p>
+        </section>
+        <div class="ai-live-grid">
+          <section class="surface ai-camera-card">
+            <div class="section-top"><div><span class="panel-label">CAMERA PREVIEW</span><h2>摄像头实时画面</h2></div><span id="aiPreviewState" class="muted">等待开启</span></div>
+            <div class="ai-video-stage">
+              <video id="aiCameraVideo" autoplay muted playsinline aria-label="摄像头实时预览" hidden></video>
+              <div id="aiVideoPlaceholder" class="ai-video-placeholder"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="8" y="18" width="34" height="30" rx="7" stroke="currentColor" stroke-width="2"/><path d="m42 27 14-7v26l-14-7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="25" cy="33" r="7" stroke="currentColor" stroke-width="2"/></svg><strong>准备好，开启课堂观察</strong><span>摄像头画面将在这里实时显示</span></div>
+              <div id="aiLiveIndicator" class="ai-video-live" hidden><i></i>LIVE</div>
+            </div>
+            <p class="muted ai-camera-caption">画面实时预览，AI 定时采样。右侧显示最近一次采样的识别结果。</p>
+          </section>
+          <section class="surface ai-result-card" aria-live="polite">
+            <div class="section-top"><div><span class="panel-label">EMOTION RESULT</span><h2>AI 识别结果</h2></div><span id="aiResultStatus" class="source-tag">等待采样</span></div>
+            <div class="ai-emotion-result"><span id="aiResultEmoji" class="ai-result-emoji" aria-hidden="true">—</span><h3 id="aiResultLabel">等待识别</h3><p id="aiResultDescription">开启摄像头后，这里会显示对应的 emoji 情绪。</p></div>
+            <div class="ai-result-metrics"><div><span>模型置信度</span><strong id="aiResultConfidence">—</strong></div><div><span>检测到的样本</span><strong id="aiResultSamples">—</strong></div></div>
+            <div class="ai-confidence-track"><i id="aiConfidenceBar"></i></div>
+            <div class="ai-sample-row"><img id="aiSampleImage" alt="与当前识别结果对应的采样画面" hidden><div><strong>本次识别画面</strong><p id="aiSampleTime">尚未采样</p><p id="aiResultSaved">达标结果自动保存为匿名 AI 记录</p></div></div>
+          </section>
+        </div>
+        <p class="muted ai-privacy-note">开启前请取得画面中参与者同意。实时画面在本页预览，采样帧在内存中处理，脸部裁片发送给已配置的 AI 服务，图像不保存。离开此页会停止摄像头与后续采样；识别结果仅作课堂聚合参考。</p>
       </div>
       <div id="adminSchedule" class="admin-section" hidden>
         <div class="dashboard-grid schedule-grid">
@@ -217,6 +251,7 @@
       <button id="savePasswordButton" class="button button-primary">保存新密码</button>
     </form>
   </dialog>
+  <script src="ai-monitor.js" defer></script>
   <script src="script.js" defer></script>
 </body>
 </html>
