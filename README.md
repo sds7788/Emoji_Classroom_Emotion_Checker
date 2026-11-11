@@ -1,6 +1,6 @@
 # 表情符号课堂情绪检查器系统
 
-本项目把原智能餐饮管理系统改造成课堂情绪反馈平台，覆盖学生自主打卡、教师课堂观察、管理员排课统计与匿名 AI 汇总。默认使用 SQLite，首次启动自动建库并载入可登录的演示账号，不需要 MySQL 或模型密钥即可运行核心功能。
+本项目是面向课堂教学的情绪反馈平台，支持学生自主打卡、教师课堂观察、管理员排课统计与匿名 AI 汇总。默认使用 SQLite，首次启动自动建库并载入可登录的演示账号，不需要单独部署数据库服务或配置模型密钥即可运行核心功能。
 
 ## 功能
 
@@ -18,7 +18,7 @@
 需要 Python 3.10 或更新版本。
 
 ```powershell
-cd Restaurant_Management_System
+cd Emoji_Classroom_Emotion_Checker
 python -m pip install -r requirements.txt
 $env:JWT_SECRET = "请替换为至少 32 位随机值"
 python -m backend.app
