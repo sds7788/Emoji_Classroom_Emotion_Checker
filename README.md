@@ -4,9 +4,11 @@
 
 ## 功能
 
-- 学生注册、登录、修改密码、加入排课名单、提交六类情绪、查询个人历史。
+- 学生公开注册；教师与管理员使用一次性邀请码注册；空库支持初始化首个管理员。所有角色可登录及修改密码。
+- 学生查看排课名单、提交六类情绪、查询个人历史。
 - 教师查看本人所授课堂，按课程和日期筛选统计，查看 60 分钟聚合趋势和最新记录。
-- 管理员管理用户角色与账号状态，创建课程和课次，为课堂安排学生名单，查询和导出 CSV。
+- 管理员生成注册邀请码、管理用户角色与状态，创建课程和课次、安排学生名单、查询和导出 CSV。
+- 管理员按课程、班级、日期筛选情绪分布、每日趋势、课程和班级对比图，并查看任意课堂的 WebSocket 实时看板。
 - 独立 AI 服务采样摄像头帧，调用兼容 OpenAI Chat Completions 的视觉模型，根据置信度阈值将匿名情绪结果写入数据库。
 - REST API 使用 JWT 与角色校验；AI 使用独立服务令牌；操作数据留审计记录；API 文档可在 `/api/docs` 查看。
 - 摄像头完整帧只在内存中处理；本地 OpenCV 检测并裁剪最多 8 张脸部样本发送给配置的模型 API，不写入磁盘或数据库。
@@ -30,7 +32,9 @@ python -m backend.app
 | 教师 | `teacher` | `teacher12345` |
 | 学生 | `student` | `student12345` |
 
-学生注册只创建学生角色。教师和管理员账号通过演示账号或管理员角色管理建立，不能通过公开注册提权。
+注册页可选择学生、教师或管理员。学生直接注册；教师和后续管理员需现有管理员在“用户管理”中生成对应角色的邀请码。邀请码默认 24 小时有效，支持 1-168 小时，一次使用后失效，数据库只保存哈希。邀请码仅在生成时展示，请单独提供给受邀人。
+
+全新数据库可以关闭演示数据并设置 `ADMIN_BOOTSTRAP_TOKEN`，在注册页选择“管理员”并将该密钥填入邀请码字段。首个管理员成功创建后，初始化入口永久关闭；并发请求也只能创建一个首任管理员。操作步骤见 [部署说明](docs/deployment.md)。
 
 ## Docker Compose
 
@@ -40,7 +44,7 @@ python -m backend.app
 docker compose up --build
 ```
 
-SQLite 文件保存在项目的 `data/` 目录。容器暴露端口默认为 `5000`。
+SQLite 文件保存在 Docker 命名卷 `emoji_data` 中。容器暴露端口默认为 `5000`。
 
 ## AI 摄像头推理
 
@@ -65,6 +69,7 @@ python -m backend.ai_service --session-id 1 --camera 0
 | `JWT_SECRET` | 开发专用占位值 | JWT 签名密钥；部署前必须更换 |
 | `DATABASE_PATH` | `data/emotion_checker.db` | SQLite 文件路径 |
 | `SEED_DEMO_DATA` | `true` | 空库首次启动时创建演示数据 |
+| `ADMIN_BOOTSTRAP_TOKEN` | 空 | 无管理员且从未初始化的数据库创建首个管理员时使用；留空关闭 |
 | `AI_SERVICE_TOKEN` | 空 | 后端 AI 写入接口的独立令牌 |
 | `AI_CONFIDENCE_THRESHOLD` | `0.55` | AI 入库置信度下限 |
 | `AI_API_KEY` | 空 | 视觉模型 API Key，仅摄像头服务需要 |
@@ -81,7 +86,7 @@ OpenAPI JSON 位于 `docs/openapi.json`，Swagger UI 位于 `/api/docs`。接口
 python -m unittest discover -s tests -v
 ```
 
-测试覆盖登录与改密、角色隔离、课堂排课和打卡、AI 服务令牌与阈值、CSV 注入处理及 API 文档。
+测试覆盖登录与改密、邀请码权限/过期/重放、首次管理员并发初始化、角色隔离、多维统计筛选、课堂排课和打卡、AI 服务令牌与阈值、CSV 注入及 API 文档。
 
 ## 项目结构
 
@@ -107,7 +112,6 @@ tests/               API 集成与安全用例
 - [用户手册](docs/user-guide.md)
 - [测试报告](docs/test-report.md)
 - [部署说明](docs/deployment.md)
-- [团队贡献填写模板](docs/contribution-template.md)
 - [演示流程](docs/demo-script.md)
 
 ## AI 限制与误判风险

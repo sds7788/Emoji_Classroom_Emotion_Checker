@@ -2,6 +2,7 @@ import csv
 import io
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -166,6 +167,115 @@ class EmojiCheckerApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/health").status_code, 200)
         self.assertEqual(self.client.get("/api/openapi.json").status_code, 200)
         self.assertIn("/api/ai/emoji-results", self.client.get("/api/openapi.json").get_json()["paths"])
+
+    def test_privileged_registration_uses_role_bound_single_use_invitations(self):
+        admin_headers = self.auth(self.admin_token)
+        self.assertEqual(self.client.post("/api/admin/invitations", headers=self.auth(self.student_token),
+                                         json={"role": "admin"}).status_code, 403)
+        for role in ("teacher", "admin"):
+            with self.subTest(role=role):
+                payload = {"username": f"invited_{role}", "password": "Invitedpass123", "role": role}
+                self.assertEqual(self.client.post("/api/auth/register", json=payload).status_code, 403)
+                issued = self.client.post("/api/admin/invitations", headers=admin_headers,
+                                          json={"role": role, "expires_in_hours": 24})
+                self.assertEqual(issued.status_code, 201, issued.get_json())
+                self.assertEqual(issued.headers["Cache-Control"], "no-store")
+                invitation = issued.get_json()["data"]
+                stored = self.db.one("SELECT * FROM registration_invitations WHERE id = ?", (invitation["id"],))
+                self.assertNotEqual(stored["code_hash"], invitation["code"])
+                self.assertIsNone(stored["used_by"])
+                wrong_role = "admin" if role == "teacher" else "teacher"
+                denied = self.client.post("/api/auth/register", json={**payload, "role": wrong_role, "registration_code": invitation["code"]})
+                self.assertEqual(denied.status_code, 403)
+                # A failed duplicate username must not consume a valid invitation.
+                duplicate = self.client.post("/api/auth/register", json={**payload, "username": "student", "registration_code": invitation["code"]})
+                self.assertEqual(duplicate.status_code, 409)
+                created = self.client.post("/api/auth/register", json={**payload, "registration_code": invitation["code"]})
+                self.assertEqual(created.status_code, 201, created.get_json())
+                self.assertEqual(created.get_json()["data"]["user"]["role"], role)
+                replay = self.client.post("/api/auth/register", json={**payload, "username": f"replay_{role}", "registration_code": invitation["code"]})
+                self.assertEqual(replay.status_code, 403)
+                logs = self.db.all("SELECT detail FROM audit_logs")
+                self.assertFalse(any(invitation["code"] in row["detail"] for row in logs))
+                token = created.get_json()["data"]["access_token"]
+                expected = 200 if role == "admin" else 403
+                self.assertEqual(self.client.get("/api/admin/users", headers=self.auth(token)).status_code, expected)
+
+    def test_expired_invitation_and_invalid_registration_input_are_rejected(self):
+        headers = self.auth(self.admin_token)
+        self.assertEqual(self.client.post("/api/admin/invitations", headers=headers, json={"role": "student"}).status_code, 400)
+        self.assertEqual(self.client.post("/api/admin/invitations", headers=headers, json={"role": "teacher", "expires_in_hours": 0}).status_code, 400)
+        issued = self.client.post("/api/admin/invitations", headers=headers, json={"role": "teacher"}).get_json()["data"]
+        self.db.execute("UPDATE registration_invitations SET expires_at = ? WHERE id = ?",
+                        ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(timespec="seconds"), issued["id"]))
+        payload = {"username": "expired_teacher", "password": "Expiredpass123", "role": "teacher", "registration_code": issued["code"]}
+        self.assertEqual(self.client.post("/api/auth/register", json=payload).status_code, 403)
+        self.assertEqual(self.client.post("/api/auth/register", json={**payload, "role": []}).status_code, 400)
+        self.assertIsNone(self.db.get_user_by_username("expired_teacher"))
+
+    def test_first_admin_bootstrap_is_atomic_and_stays_closed_after_role_changes(self):
+        app = create_app({
+            "TESTING": True, "SECRET_KEY": "bootstrap-test-secret-that-is-long-enough",
+            "DATABASE_PATH": str(Path(self.temp_dir.name) / "bootstrap.db"),
+            "SEED_DEMO_DATA": False, "ADMIN_BOOTSTRAP_TOKEN": "local-test-initialization-key",
+        })
+        client = app.test_client()
+        options = client.get("/api/auth/registration-options").get_json()["data"]
+        self.assertTrue(options["admin_bootstrap_available"])
+        payload = {"username": "firstadmin", "password": "Firstadmin123", "role": "admin"}
+        self.assertEqual(client.post("/api/auth/register", json={**payload, "registration_code": "wrong"}).status_code, 403)
+        def create_first_admin(index):
+            with app.test_client() as concurrent_client:
+                return concurrent_client.post("/api/auth/register", json={
+                    **payload, "username": f"firstadmin{index}", "registration_code": "local-test-initialization-key",
+                }).status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertEqual(sorted(pool.map(create_first_admin, range(2))), [201, 403])
+        db = app.extensions["emotion_repository"]
+        self.assertEqual(db.one("SELECT COUNT(*) AS total FROM users WHERE role = 'admin'")["total"], 1)
+        self.assertFalse(client.get("/api/auth/registration-options").get_json()["data"]["admin_bootstrap_available"])
+        db.execute("UPDATE users SET role = 'student' WHERE role = 'admin'")
+        self.assertFalse(client.get("/api/auth/registration-options").get_json()["data"]["admin_bootstrap_available"])
+        self.assertEqual(client.post("/api/auth/register", json={**payload, "registration_code": "local-test-initialization-key"}).status_code, 403)
+
+    def test_admin_multidimensional_statistics_and_realtime_keep_teacher_scope(self):
+        headers = self.auth(self.admin_token)
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        teacher = self.db.get_user_by_username("teacher")
+        course = self.client.post("/api/admin/courses", headers=headers, json={
+            "course_code": "STATS-2", "name": "统计验收课程", "teacher_id": teacher["id"],
+        }).get_json()["data"]["id"]
+        session = self.client.post("/api/admin/sessions", headers=headers, json={
+            "course_id": course, "class_name": "统计验收班", "status": "active",
+            "starts_at": (now - timedelta(minutes=10)).isoformat(), "ends_at": (now + timedelta(hours=1)).isoformat(),
+        }).get_json()["data"]["id"]
+        # The record is exactly on the filter boundary, expressed in a different timezone.
+        self.db.execute("INSERT INTO emoji_records (user_id, session_id, emoji_type, recorded_at, source) VALUES (?, ?, 'happy', ?, 'MANUAL')",
+                        (self.db.get_user_by_username("student")["id"], session, now.isoformat()))
+        query = {"course_id": course, "class_name": "统计验收班", "from": now.astimezone(timezone(timedelta(hours=8))).isoformat(),
+                 "to": (now + timedelta(minutes=1)).isoformat()}
+        result = self.client.get("/api/admin/statistics", headers=headers, query_string=query)
+        self.assertEqual(result.status_code, 200, result.get_json())
+        stats = result.get_json()["data"]
+        self.assertEqual(stats["total"], 1)
+        self.assertEqual(stats["by_course"], [{"course_id": course, "course_name": "统计验收课程", "total": 1}])
+        self.assertEqual(stats["by_class"], [{"class_name": "统计验收班", "total": 1}])
+        self.assertEqual(stats["daily_trend"], [{"day": now.strftime("%Y-%m-%d"), "emoji_type": "happy", "count": 1}])
+        other_class = self.client.get("/api/admin/statistics", headers=headers, query_string={**query, "class_name": "不匹配班级"}).get_json()["data"]
+        self.assertEqual(other_class["total"], 0)
+        self.assertEqual(other_class["by_course"], [])
+        self.assertEqual(self.client.get("/api/admin/statistics", headers=headers, query_string={**query, "from": "invalid"}).status_code, 400)
+        self.assertEqual(self.client.get("/api/admin/statistics", headers=headers, query_string={**query, "from": query["to"], "to": now.isoformat()}).status_code, 400)
+        live = self.client.get(f"/api/admin/dashboard/realtime?sessionId={session}", headers=headers)
+        self.assertEqual(live.status_code, 200)
+        self.assertEqual(live.get_json()["data"]["total_last_hour"], 1)
+        self.assertEqual(self.client.get(f"/api/admin/dashboard/realtime?sessionId={session}", headers=self.auth(self.student_token)).status_code, 403)
+        # A different teacher can see neither the chart groups nor the live classroom.
+        self.db.execute("UPDATE users SET role = 'teacher' WHERE username = 'student'")
+        other_token = self.login("student", "student12345")
+        other_stats = self.client.get("/api/admin/statistics", headers=self.auth(other_token), query_string=query).get_json()["data"]
+        self.assertEqual(other_stats["by_class"], [])
+        self.assertEqual(self.client.get(f"/api/admin/dashboard/realtime?sessionId={session}", headers=self.auth(other_token)).status_code, 403)
 
     def test_ai_worker_discards_frames_without_detected_faces(self):
         try:

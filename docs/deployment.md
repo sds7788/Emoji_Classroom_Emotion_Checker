@@ -13,6 +13,22 @@ python -m backend.app
 
 SQLite Schema 在第一次启动时幂等应用。不要把数据库文件、API Key 或 `.env` 提交到 Git。
 
+## 创建首个管理员
+
+正式部署可以使用一个新的数据库文件，并关闭演示账号：
+
+```powershell
+$env:SEED_DEMO_DATA = "false"
+$env:DATABASE_PATH = "data/production.db"
+$env:ADMIN_BOOTSTRAP_TOKEN = "替换为至少32位随机初始化密钥"
+$env:JWT_SECRET = "替换为独立的至少32位随机签名密钥"
+python -m backend.app
+```
+
+在注册页选择“管理员”，填写账号信息，将 `ADMIN_BOOTSTRAP_TOKEN` 的值填入邀请码字段。成功后初始化入口自动永久关闭，即使管理员之后停用或改变角色也不会重新打开。完成后移除该环境变量并重启服务。已有演示管理员的数据库无需初始化，可以直接由管理员生成教师或管理员邀请码。不要把初始化密钥写入提交材料或截图。
+
+初始化密钥及 JWT、AI 令牌相互独立。初始化状态通过 `GET /api/auth/registration-options` 查询，但密钥从不返回前端。后续开户在“用户管理”生成一次性邀请码，默认 24 小时、最长 168 小时。
+
 ## Docker Compose
 
 将 `.env.example` 复制成 `.env`，替换 `JWT_SECRET` 和 `AI_SERVICE_TOKEN`。空 `AI_API_KEY` 不影响普通服务。然后执行 `docker compose up --build -d`，访问 `http://localhost:5000`。命名卷 `emoji_data` 持久化 SQLite 数据。查看日志：`docker compose logs -f app`；停止服务：`docker compose down`。
@@ -23,7 +39,7 @@ SQLite Schema 在第一次启动时幂等应用。不要把数据库文件、API
 - 设置专用、不可预测的 `AI_SERVICE_TOKEN`，限制 AI 服务到后端的网络路径。
 - 设置准确的 `CORS_ORIGINS`，不要在公网部署时允许 `*`。
 - 按学校要求启用 HTTPS、数据库备份和日志轮转；SQLite 文件应有受限的文件系统权限。
-- `SEED_DEMO_DATA=false` 可关闭空库演示数据，但关闭后需通过安全管理流程建立第一个管理员账号。当前版本未提供公网管理员自助注册接口。
+- `SEED_DEMO_DATA=false` 关闭空库演示数据；首任管理员按上述初始化流程建立，后续教师和管理员使用角色邀请码注册。
 - 摄像头采样帧通过 HTTPS 发给配置的视觉模型 API；检查模型提供方数据保留策略及学校授权要求。
 
 ## 故障排查

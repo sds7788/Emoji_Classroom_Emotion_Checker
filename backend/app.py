@@ -33,6 +33,7 @@ def create_app(test_config=None):
         AI_CONFIDENCE_THRESHOLD=float(os.environ.get("AI_CONFIDENCE_THRESHOLD", "0.55")),
         DATABASE_PATH=os.environ.get("DATABASE_PATH", "data/emotion_checker.db"),
         SEED_DEMO_DATA=os.environ.get("SEED_DEMO_DATA", "true").lower() == "true",
+        ADMIN_BOOTSTRAP_TOKEN=os.environ.get("ADMIN_BOOTSTRAP_TOKEN", ""),
         JSON_SORT_KEYS=False,
     )
     if test_config:
@@ -128,6 +129,12 @@ def create_app(test_config=None):
             mimetype="text/html",
         )
 
+    @app.get("/api/auth/registration-options")
+    def registration_options():
+        return response({"admin_bootstrap_available": bool(app.config["ADMIN_BOOTSTRAP_TOKEN"])
+                         and not db.one("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
+                         and not db.one("SELECT id FROM audit_logs WHERE action = 'admin_bootstrap' LIMIT 1")})
+
     @app.post("/api/auth/register")
     def register():
         data = json_body()
@@ -135,6 +142,12 @@ def create_app(test_config=None):
         password = str(data.get("password", ""))
         full_name = str(data.get("full_name", username)).strip()
         email = str(data.get("email", "")).strip().lower() or None
+        role = data.get("role", "student")
+        registration_code = str(data.get("registration_code", ""))
+        if not isinstance(role, str) or role not in {"student", "teacher", "admin"}:
+            return error("role 必须为 student、teacher 或 admin")
+        if len(registration_code) > 256:
+            return error("邀请码长度无效")
         if not re.fullmatch(r"[A-Za-z0-9_.-]{3,32}", username):
             return error("用户名需为 3-32 位字母、数字、点、下划线或短横线")
         if len(password) < 8 or len(password.encode("utf-8")) > 72:
@@ -145,17 +158,33 @@ def create_app(test_config=None):
             return error("邮箱格式无效")
         password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12))
         try:
-            user_id = db.create_user(username, password_hash, "student", full_name, email)
+            user_id = services.register_user(db, username, password_hash, role, full_name, email,
+                                            registration_code, app.config["ADMIN_BOOTSTRAP_TOKEN"])
+        except PermissionError as exc:
+            return error(str(exc), 403)
         except Exception as exc:
             return handle_integrity_error(exc)
         user = db.get_user_by_id(user_id)
         token = jwt.encode(
-            {"user_id": user_id, "username": username, "role": "student", "token_version": 0,
+            {"user_id": user_id, "username": username, "role": role, "token_version": 0,
              "exp": datetime.now(timezone.utc) + app.config["JWT_ACCESS_TOKEN_EXPIRES"]},
             app.config["SECRET_KEY"], algorithm="HS256",
         )
-        db.audit(user_id, "register", "user", user_id)
         return response({"access_token": token, "user": user}, 201, "注册成功")
+
+    @app.post("/api/admin/invitations")
+    @authenticated({"admin"})
+    def create_invitation(user):
+        data = json_body()
+        role = data.get("role")
+        if not isinstance(role, str) or role not in {"teacher", "admin"}:
+            return error("邀请码角色必须是 teacher 或 admin")
+        hours = data.get("expires_in_hours", 24)
+        if type(hours) is not int or not 1 <= hours <= 168:
+            return error("邀请码有效期必须为 1-168 小时的整数")
+        result = response(services.issue_invitation(db, user["id"], role, hours), 201)
+        result[0].headers["Cache-Control"] = "no-store"
+        return result
 
     @app.post("/api/auth/login")
     def login():

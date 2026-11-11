@@ -19,6 +19,8 @@ const state = {
   pollTimer: null,
   dashboardSocket: null,
   dashboardSocketSession: null,
+  dashboardSocketTarget: null,
+  adminBootstrapAvailable: false,
   activeAdminTab: 'overview',
 };
 
@@ -104,13 +106,34 @@ function showAuth(message = '') {
 
 function setAuthMode(register) {
   state.register = register;
-  $('#authTitle').textContent = register ? '创建学生账号' : '登录课堂空间';
-  $('#authSubtitle').textContent = register ? '注册后即可加入已安排的课堂' : '使用老师或学生账号继续';
+  $('#authTitle').textContent = register ? '创建课堂账号' : '登录课堂空间';
+  $('#authSubtitle').textContent = register ? '选择身份并填写注册信息' : '使用老师或学生账号继续';
   $('#authSubmit').textContent = register ? '注册并进入' : '登录';
-  $('#switchAuthMode').textContent = register ? '已有账号？返回登录' : '还没有账号？注册学生账号';
+  $('#switchAuthMode').textContent = register ? '已有账号？返回登录' : '还没有账号？创建账号';
   $('#registerFields').hidden = !register;
   $('#authPassword').autocomplete = register ? 'new-password' : 'current-password';
   $('#authError').hidden = true;
+  updateRegistrationRole();
+  if (register) loadRegistrationOptions();
+}
+
+async function loadRegistrationOptions() {
+  try {
+    const options = await api('/auth/registration-options');
+    state.adminBootstrapAvailable = options.admin_bootstrap_available;
+    updateRegistrationRole();
+  } catch { state.adminBootstrapAvailable = false; updateRegistrationRole(); }
+}
+
+function updateRegistrationRole() {
+  const role = $('#authRole').value;
+  const privileged = state.register && role !== 'student';
+  $('#registrationCodeField').hidden = !privileged;
+  $('#authRegistrationCode').required = privileged;
+  $('#registrationCodeLabel').textContent = role === 'admin' && state.adminBootstrapAvailable ? '邀请码或首次初始化密钥' : '注册邀请码';
+  $('#registrationHint').textContent = role === 'student' ? '学生可直接注册，课表由管理员安排。'
+    : role === 'admin' && state.adminBootstrapAvailable ? '当前尚无管理员，可使用部署时设置的初始化密钥创建首个管理员。'
+      : '请向管理员获取与你的注册身份对应的一次性邀请码。';
 }
 
 function showView(name) {
@@ -143,7 +166,6 @@ async function navigate(name) {
   }
   if (name === 'admin') {
     await loadAdmin();
-    startPolling(() => state.activeAdminTab === 'overview' ? loadAdminOverview() : null);
   }
 }
 
@@ -154,6 +176,8 @@ function signOut(showMessage = true) {
   state.user = null;
   localStorage.removeItem('emotionToken');
   localStorage.removeItem('emotionUser');
+  $('#invitationCode').value = '';
+  $('#invitationResult').hidden = true;
   if (showMessage) toast('已安全退出');
   showAuth();
   $('#openLoginButton').hidden = false;
@@ -190,11 +214,15 @@ async function submitAuth(event) {
   if (state.register) {
     payload.full_name = $('#authFullName').value.trim();
     payload.email = $('#authEmail').value.trim();
+    payload.role = $('#authRole').value;
+    if (payload.role !== 'student') payload.registration_code = $('#authRegistrationCode').value.trim();
   }
   try {
     const result = await api(`/auth/${state.register ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify(payload) });
     state.token = result.access_token;
     state.user = result.user;
+    $('#authRegistrationCode').value = '';
+    $('#authPassword').value = '';
     localStorage.setItem('emotionToken', state.token);
     localStorage.setItem('emotionUser', JSON.stringify(state.user));
     renderNavigation();
@@ -396,23 +424,25 @@ function closeDashboardSocket() {
   state.dashboardSocket?.close();
   state.dashboardSocket = null;
   state.dashboardSocketSession = null;
+  state.dashboardSocketTarget = null;
 }
 
-function connectDashboardSocket(sessionId) {
+function connectDashboardSocket(sessionId, target = 'teacher') {
   if (!sessionId || !window.WebSocket) {
     closeDashboardSocket();
-    if (sessionId) startPolling(loadTeacherDashboard);
+    if (sessionId) startPolling(target === 'admin' ? loadAdminOverview : loadTeacherDashboard);
     return;
   }
-  if (state.dashboardSocketSession === sessionId && state.dashboardSocket
+  if (state.dashboardSocketSession === sessionId && state.dashboardSocketTarget === target && state.dashboardSocket
       && state.dashboardSocket.readyState <= WebSocket.OPEN) return;
   closeDashboardSocket();
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const socket = new WebSocket(`${protocol}//${window.location.host}/ws/dashboard`);
   state.dashboardSocket = socket;
   state.dashboardSocketSession = sessionId;
+  state.dashboardSocketTarget = target;
   socket.addEventListener('open', () => {
-    stopPolling();
+    if (target === 'teacher') stopPolling();
     socket.send(JSON.stringify({ token: state.token, session_id: Number(sessionId) }));
   });
   socket.addEventListener('message', (event) => {
@@ -422,16 +452,20 @@ function connectDashboardSocket(sessionId) {
         socket.close();
         return;
       }
-      renderLiveUpdate(message.data);
+      if (state.dashboardSocket !== socket) return;
+      if (target === 'admin') renderAdminLiveUpdate(message.data);
+      else renderLiveUpdate(message.data);
     } catch (error) {
       console.error('Invalid dashboard update', error);
     }
   });
   socket.addEventListener('close', () => {
-    if (state.dashboardSocket !== socket || $('#teacherView').hidden) return;
+    if (state.dashboardSocket !== socket || (target === 'teacher' ? $('#teacherView').hidden
+      : $('#adminView').hidden || state.activeAdminTab !== 'overview')) return;
     state.dashboardSocket = null;
     state.dashboardSocketSession = null;
-    startPolling(loadTeacherDashboard);
+    state.dashboardSocketTarget = null;
+    startPolling(target === 'admin' ? loadAdminOverview : loadTeacherDashboard);
   });
   socket.addEventListener('error', () => socket.close());
 }
@@ -440,7 +474,6 @@ function renderLiveUpdate(realtime) {
   if (!realtime || $('#teacherView').hidden) return;
   renderTrend($('#trendChart'), realtime.trend);
   $('#chartEmpty').hidden = Boolean(realtime.total_last_hour);
-  renderDistribution($('#emotionDistribution'), realtime.counts);
   $('#metricTotal').textContent = realtime.total_last_hour;
   const total = realtime.total_last_hour || 0;
   const counts = Object.fromEntries(realtime.counts.map((item) => [item.type, item.count]));
@@ -459,7 +492,7 @@ function renderDistribution(container, items = []) {
       <span class="progress-track"><i style="width:${Math.max(item.count ? 4 : 0, (item.count / max) * 100)}%"></i></span><b class="dist-count">${item.count}</b></div>`).join('') || '<div class="empty-state">暂无记录</div>';
 }
 
-function renderTrend(canvas, points = []) {
+function renderTrend(canvas, points = [], labelMode = 'time') {
   if (!canvas) return;
   const box = canvas.getBoundingClientRect();
   if (!box.width) return;
@@ -490,11 +523,12 @@ function renderTrend(canvas, points = []) {
     context.fillStyle = '#9aa5a8'; context.textAlign = 'right';
     context.fillText(String(Math.round(max * (3 - tick) / 3)), left - 8, y);
   }
+  const labelStep = Math.max(2, Math.ceil(points.length / Math.max(2, Math.floor(plotWidth / 62))));
   points.forEach((point, index) => {
     const x = left + (points.length <= 1 ? plotWidth / 2 : index * plotWidth / (points.length - 1));
-    if (index % 2 === 0 || index === points.length - 1) {
+    if (index % labelStep === 0 || index === points.length - 1) {
       context.fillStyle = '#9aa5a8'; context.textAlign = index === 0 ? 'left' : index === points.length - 1 ? 'right' : 'center';
-      context.fillText(formatDate(point.time, { month: undefined, day: undefined, hour: '2-digit', minute: '2-digit' }), x, height - 10);
+      context.fillText(labelMode === 'day' ? point.day.slice(5) : formatDate(point.time, { month: undefined, day: undefined, hour: '2-digit', minute: '2-digit' }), x, height - 10);
     }
   });
   series.forEach((line, lineIndex) => {
@@ -533,29 +567,39 @@ async function loadAdmin() {
 function refreshAdminSelectors() {
   const sessionOptions = state.adminSessions.map((item) =>
     `<option value="${item.id}">${escapeHtml(item.course_name)} · ${escapeHtml(item.class_name)} · ${formatDate(item.starts_at)}</option>`).join('');
-  [['rosterSessionSelect', '选择课堂'], ['adminRecordSession', '全部课堂']].forEach(([id, label]) => {
+  [['rosterSessionSelect', '选择课堂'], ['adminRecordSession', '全部课堂'], ['adminLiveSessionSelect', '选择实时课堂']].forEach(([id, label]) => {
     const select = $(`#${id}`);
     const previous = select.value;
     select.innerHTML = `<option value="">${label}</option>${sessionOptions}`;
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
+    if (id === 'adminLiveSessionSelect' && !select.value && state.adminSessions.length) {
+      select.value = String((state.adminSessions.find((item) => item.status === 'active') || state.adminSessions[0]).id);
+    }
   });
-  [['scheduleCourse', ''], ['adminRecordCourse', '全部课程']].forEach(([id, label]) => {
+  [['scheduleCourse', ''], ['adminRecordCourse', '全部课程'], ['adminStatsCourseFilter', '全部课程']].forEach(([id, label]) => {
     const select = $(`#${id}`);
     const previous = select.value;
     select.innerHTML = `${label ? `<option value="">${label}</option>` : ''}${state.courses.map((course) =>
       `<option value="${course.id}">${escapeHtml(course.name)}${id === 'scheduleCourse' ? ` · ${escapeHtml(course.teacher_name)}` : ''}</option>`).join('')}`;
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
   });
-  const classSelect = $('#adminRecordClass');
-  const previousClass = classSelect.value;
   const classes = [...new Set(state.adminSessions.map((session) => session.class_name))];
-  classSelect.innerHTML = `<option value="">全部班级</option>${classes.map((name) =>
-    `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}`;
-  if ([...classSelect.options].some((option) => option.value === previousClass)) classSelect.value = previousClass;
+  ['adminRecordClass', 'adminStatsClassFilter'].forEach((id) => {
+    const classSelect = $(`#${id}`);
+    const previousClass = classSelect.value;
+    classSelect.innerHTML = `<option value="">全部班级</option>${classes.map((name) =>
+      `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}`;
+    if ([...classSelect.options].some((option) => option.value === previousClass)) classSelect.value = previousClass;
+  });
 }
 
 async function loadAdminTab() {
-  if (state.activeAdminTab === 'overview') return loadAdminOverview();
+  stopPolling();
+  closeDashboardSocket();
+  if (state.activeAdminTab === 'overview') {
+    startPolling(loadAdminOverview);
+    return loadAdminOverview();
+  }
   if (state.activeAdminTab === 'users') return renderUsers();
   if (state.activeAdminTab === 'schedule') return loadScheduleView();
   return loadAdminRecords();
@@ -564,19 +608,85 @@ async function loadAdminTab() {
 async function loadAdminOverview() {
   if ($('#adminView').hidden || state.activeAdminTab !== 'overview') return;
   try {
-    const params = new URLSearchParams({ limit: '30' });
-    const [stats, records] = await Promise.all([
-      api('/admin/statistics'), api(`/emoji/history?${params}`),
-    ]);
+    const params = queryFilters('adminStats');
+    if (params.get('from') && params.get('to') && params.get('from') > params.get('to')) {
+      throw new Error('统计开始日期不能晚于结束日期');
+    }
+    const stats = await api(`/admin/statistics?${params}`);
+    if ($('#adminView').hidden || state.activeAdminTab !== 'overview' || queryFilters('adminStats').toString() !== params.toString()) return;
     $('#adminUserCount').textContent = state.users.length;
     $('#adminRecordCount').textContent = stats.total;
     $('#adminActiveCount').textContent = state.adminSessions.filter((item) => item.status === 'active').length;
     $('#adminCourseCount').textContent = state.courses.length;
     renderDistribution($('#adminDistribution'), stats.emotions);
-    $('#adminRecent').innerHTML = recordRows(records.slice(0, 6));
+    $('#adminStatsSummary').textContent = `当前筛选共 ${stats.total} 条反馈`;
+    $('#adminDailyEmpty').hidden = Boolean(stats.total);
+    const days = new Map();
+    stats.daily_trend.forEach((item) => {
+      if (!days.has(item.day)) days.set(item.day, { day: item.day });
+      days.get(item.day)[item.emoji_type] = item.count;
+    });
+    renderTrend($('#adminDailyTrend'), [...days.values()], 'day');
+    renderBreakdown($('#adminCourseBreakdown'), stats.by_course.map((item) => ({ label: item.course_name, count: item.total })));
+    renderBreakdown($('#adminClassBreakdown'), stats.by_class.map((item) => ({ label: item.class_name, count: item.total })));
+    await loadAdminLiveDashboard();
   } catch (error) {
     toast(error.message);
   }
+}
+
+function renderBreakdown(container, items) {
+  const max = Math.max(1, ...items.map((item) => item.count));
+  container.innerHTML = items.map((item) => `<div class="breakdown-item"><span>${escapeHtml(item.label)}</span><span class="progress-track"><i style="width:${item.count / max * 100}%"></i></span><b>${item.count}</b></div>`).join('')
+    || '<div class="empty-state">当前筛选范围暂无反馈</div>';
+}
+
+async function loadAdminLiveDashboard() {
+  if ($('#adminView').hidden || state.activeAdminTab !== 'overview') return;
+  const sessionId = $('#adminLiveSessionSelect').value;
+  if (!sessionId) {
+    closeDashboardSocket();
+    renderAdminLiveUpdate(null);
+    return;
+  }
+  try {
+    const realtime = await api(`/admin/dashboard/realtime?sessionId=${encodeURIComponent(sessionId)}`);
+    if ($('#adminLiveSessionSelect').value !== sessionId || $('#adminView').hidden || state.activeAdminTab !== 'overview') return;
+    renderAdminLiveUpdate(realtime);
+    connectDashboardSocket(sessionId, 'admin');
+  } catch (error) { toast(error.message); }
+}
+
+function renderAdminLiveUpdate(realtime) {
+  if ($('#adminView').hidden || state.activeAdminTab !== 'overview') return;
+  const total = realtime?.total_last_hour || 0;
+  const counts = Object.fromEntries((realtime?.counts || []).map((item) => [item.type, item.count]));
+  $('#adminLiveTotal').textContent = total;
+  $('#adminLivePositive').textContent = `${total ? Math.round(((counts.happy || 0) + (counts.excited || 0)) / total * 100) : 0}%`;
+  $('#adminLiveFocused').textContent = `${total ? Math.round((counts.focused || 0) / total * 100) : 0}%`;
+  const session = state.adminSessions.find((item) => String(item.id) === String(realtime?.session.id));
+  $('#adminLiveStudents').textContent = session?.student_count || 0;
+  $('#adminLiveEmpty').hidden = Boolean(total);
+  renderTrend($('#adminLiveTrend'), realtime?.trend || []);
+  renderDistribution($('#adminLiveDistribution'), realtime?.counts || []);
+  $('#adminRecent').innerHTML = recordRows(realtime?.recent || []);
+  $('#adminLiveUpdated').textContent = realtime ? `更新于 ${formatDate(realtime.generated_at)} · 实时推送 / 10 秒轮询` : '暂无课堂';
+}
+
+async function createInvitation(event) {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button');
+  button.disabled = true;
+  $('#invitationResult').hidden = true;
+  $('#invitationCode').value = '';
+  try {
+    const fields = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const invitation = await api('/admin/invitations', { method: 'POST', body: JSON.stringify({ role: fields.role, expires_in_hours: Number(fields.expires_in_hours) }) });
+    $('#invitationCode').value = invitation.code;
+    $('#invitationMessage').textContent = `${roleLabel(invitation.role)}邀请码 · ${formatDate(invitation.expires_at)} 前有效 · 仅可注册一次`;
+    $('#invitationResult').hidden = false;
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
 }
 
 function renderUsers() {
@@ -713,6 +823,10 @@ async function pingBackend() {
 
 $('#authForm').addEventListener('submit', submitAuth);
 $('#switchAuthMode').addEventListener('click', () => setAuthMode(!state.register));
+$('#authRole').addEventListener('change', () => { $('#authRegistrationCode').value = ''; updateRegistrationRole(); });
+$('#invitationForm').addEventListener('submit', createInvitation);
+$('#adminApplyStatsFilter').addEventListener('click', loadAdminOverview);
+$('#adminLiveSessionSelect').addEventListener('change', loadAdminLiveDashboard);
 $('#logoutButton').addEventListener('click', () => signOut());
 $('#changePasswordButton').addEventListener('click', () => {
   $('#passwordMessage').hidden = true;
@@ -742,6 +856,7 @@ $$('.admin-tab').forEach((button) => button.addEventListener('click', async () =
 
 window.addEventListener('resize', () => {
   if (state.user?.role === 'teacher' && !$('#teacherView').hidden) loadTeacherDashboard();
+  if (state.user?.role === 'admin' && !$('#adminView').hidden && state.activeAdminTab === 'overview') loadAdminOverview();
 });
 
 pingBackend();

@@ -2,70 +2,1000 @@
   "openapi": "3.0.3",
   "info": {
     "title": "课堂情绪检查器 API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "课堂情绪手动记录、课程安排、教师看板和独立 AI 推理结果入库接口。所有时间使用 ISO 8601 格式；普通接口统一返回 code、message、data。"
   },
-  "servers": [{ "url": "http://localhost:5000" }],
+  "servers": [
+    {
+      "url": "http://localhost:5000"
+    }
+  ],
   "tags": [
-    { "name": "认证" }, { "name": "课堂" }, { "name": "情绪记录" },
-    { "name": "教师看板" }, { "name": "管理员" }, { "name": "AI 服务" }
+    {
+      "name": "认证"
+    },
+    {
+      "name": "课堂"
+    },
+    {
+      "name": "情绪记录"
+    },
+    {
+      "name": "教师看板"
+    },
+    {
+      "name": "管理员"
+    },
+    {
+      "name": "AI 服务"
+    }
   ],
   "components": {
     "securitySchemes": {
-      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" },
-      "aiServiceToken": { "type": "apiKey", "in": "header", "name": "X-AI-Service-Token" }
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "aiServiceToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-AI-Service-Token"
+      }
     },
     "schemas": {
       "ApiResponse": {
-        "type": "object", "required": ["code", "message", "data"],
-        "properties": { "code": { "type": "integer" }, "message": { "type": "string" }, "data": {} }
-      },
-      "EmojiType": { "type": "string", "enum": ["happy", "confused", "bored", "sad", "focused", "excited"] },
-      "AiEmojiResult": {
-        "type": "object", "required": ["session_id", "emoji_type", "confidence"],
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
         "properties": {
-          "session_id": { "type": "integer" }, "emoji_type": { "$ref": "#/components/schemas/EmojiType" },
-          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-          "recorded_at": { "type": "string", "format": "date-time" }, "device_id": { "type": "string" }
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        }
+      },
+      "EmojiType": {
+        "type": "string",
+        "enum": [
+          "happy",
+          "confused",
+          "bored",
+          "sad",
+          "focused",
+          "excited"
+        ]
+      },
+      "AiEmojiResult": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "emoji_type",
+          "confidence"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "integer"
+          },
+          "emoji_type": {
+            "$ref": "#/components/schemas/EmojiType"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "device_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Statistics": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "emotions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "$ref": "#/components/schemas/EmojiType"
+                },
+                "emoji": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "share": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "by_course": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "course_id": {
+                  "type": "integer"
+                },
+                "course_name": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "by_class": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "class_name": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "by_session": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "daily_trend": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "emoji_type": {
+                  "$ref": "#/components/schemas/EmojiType"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
         }
       }
     }
   },
   "paths": {
-    "/health": { "get": { "summary": "服务健康状态", "responses": { "200": { "description": "服务在线" } } } },
+    "/health": {
+      "get": {
+        "summary": "服务健康状态",
+        "responses": {
+          "200": {
+            "description": "服务在线"
+          }
+        }
+      }
+    },
     "/api/auth/register": {
-      "post": { "tags": ["认证"], "summary": "注册学生账号", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["username", "password"], "properties": { "username": { "type": "string" }, "password": { "type": "string", "minLength": 8 }, "full_name": { "type": "string" }, "email": { "type": "string", "format": "email" } } } } } }, "responses": { "201": { "description": "账号已创建并返回 JWT" }, "409": { "description": "用户名或邮箱已占用" } } }
+      "post": {
+        "tags": [
+          "认证"
+        ],
+        "summary": "注册学生、受邀教师/管理员或初始化首个管理员",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8
+                  },
+                  "full_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "student",
+                      "teacher",
+                      "admin"
+                    ],
+                    "default": "student"
+                  },
+                  "registration_code": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "writeOnly": true,
+                    "description": "教师或管理员的一次性邀请码，或首任管理员初始化密钥"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "账号已创建并返回 JWT"
+          },
+          "409": {
+            "description": "用户名或邮箱已占用"
+          },
+          "403": {
+            "description": "邀请码无效、已使用、已过期、角色不匹配或初始化已关闭"
+          }
+        },
+        "description": "学生无需邀请码；教师和后续管理员需要角色匹配且未使用、未过期的邀请码。首次管理员可在尚无管理员且从未初始化的数据库使用 ADMIN_BOOTSTRAP_TOKEN。"
+      }
     },
     "/api/auth/login": {
-      "post": { "tags": ["认证"], "summary": "登录并取得 JWT", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["username", "password"], "properties": { "username": { "type": "string" }, "password": { "type": "string" } } } } } }, "responses": { "200": { "description": "登录成功" }, "401": { "description": "账号或密码错误" } } }
+      "post": {
+        "tags": [
+          "认证"
+        ],
+        "summary": "登录并取得 JWT",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功"
+          },
+          "401": {
+            "description": "账号或密码错误"
+          }
+        }
+      }
     },
-    "/api/auth/password": { "put": { "tags": ["认证"], "security": [{ "bearerAuth": [] }], "summary": "修改当前密码", "responses": { "200": { "description": "密码已修改" } } } },
-    "/api/users/me": { "get": { "tags": ["认证"], "security": [{ "bearerAuth": [] }], "summary": "当前账号信息", "responses": { "200": { "description": "用户信息" } } } },
-    "/api/sessions": { "get": { "tags": ["课堂"], "security": [{ "bearerAuth": [] }], "summary": "获取当前账号可见课堂", "responses": { "200": { "description": "课堂列表" } } } },
+    "/api/auth/password": {
+      "put": {
+        "tags": [
+          "认证"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "修改当前密码",
+        "responses": {
+          "200": {
+            "description": "密码已修改"
+          }
+        }
+      }
+    },
+    "/api/users/me": {
+      "get": {
+        "tags": [
+          "认证"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "当前账号信息",
+        "responses": {
+          "200": {
+            "description": "用户信息"
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "tags": [
+          "课堂"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "获取当前账号可见课堂",
+        "responses": {
+          "200": {
+            "description": "课堂列表"
+          }
+        }
+      }
+    },
     "/api/emoji": {
-      "post": { "tags": ["情绪记录"], "security": [{ "bearerAuth": [] }], "summary": "学生提交手动情绪", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["session_id", "emoji_type"], "properties": { "session_id": { "type": "integer" }, "emoji_type": { "$ref": "#/components/schemas/EmojiType" }, "device_id": { "type": "string" } } } } } }, "responses": { "201": { "description": "记录已保存" }, "403": { "description": "没有此课堂访问权限" } } }
+      "post": {
+        "tags": [
+          "情绪记录"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "学生提交手动情绪",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "session_id",
+                  "emoji_type"
+                ],
+                "properties": {
+                  "session_id": {
+                    "type": "integer"
+                  },
+                  "emoji_type": {
+                    "$ref": "#/components/schemas/EmojiType"
+                  },
+                  "device_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "记录已保存"
+          },
+          "403": {
+            "description": "没有此课堂访问权限"
+          }
+        }
+      }
     },
-    "/api/emoji/history": { "get": { "tags": ["情绪记录"], "security": [{ "bearerAuth": [] }], "summary": "查询按角色隔离的情绪历史", "parameters": [{ "name": "session_id", "in": "query", "schema": { "type": "integer" } }, { "name": "course_id", "in": "query", "schema": { "type": "integer" } }, { "name": "source", "in": "query", "schema": { "type": "string", "enum": ["MANUAL", "AI"] } }, { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } }, { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" } }], "responses": { "200": { "description": "情绪记录列表" } } } },
-    "/api/emoji/statistics": { "get": { "tags": ["情绪记录"], "security": [{ "bearerAuth": [] }], "summary": "查询当前角色范围内的情绪统计", "responses": { "200": { "description": "情绪统计" } } } },
-    "/api/teacher/sessions": { "get": { "tags": ["教师看板"], "security": [{ "bearerAuth": [] }], "summary": "教师授课课堂列表", "responses": { "200": { "description": "课堂列表" } } } },
-    "/api/admin/dashboard/realtime": { "get": { "tags": ["教师看板"], "security": [{ "bearerAuth": [] }], "summary": "课堂实时汇总、趋势与最新记录", "parameters": [{ "name": "sessionId", "in": "query", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "实时课堂数据" }, "403": { "description": "课堂访问被拒绝" } } } },
-    "/ws/dashboard": { "get": { "tags": ["教师看板"], "summary": "WebSocket 实时订阅。连接后首条消息发送 {token, session_id}，之后每 5 秒推送看板数据。", "responses": { "101": { "description": "WebSocket 升级成功" } } } },
-    "/api/admin/statistics": { "get": { "tags": ["教师看板", "管理员"], "security": [{ "bearerAuth": [] }], "summary": "按课程、班级、时间和课堂聚合统计", "responses": { "200": { "description": "多维统计数据" } } } },
-    "/api/admin/users": { "get": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "用户目录", "responses": { "200": { "description": "用户列表" }, "403": { "description": "需要管理员角色" } } } },
-    "/api/admin/users/{user_id}": { "put": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "修改用户角色或状态", "parameters": [{ "name": "user_id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "用户已更新" } } } },
+    "/api/emoji/history": {
+      "get": {
+        "tags": [
+          "情绪记录"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "查询按角色隔离的情绪历史",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "MANUAL",
+                "AI"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "class_name",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "情绪记录列表"
+          }
+        }
+      }
+    },
+    "/api/emoji/statistics": {
+      "get": {
+        "tags": [
+          "情绪记录"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "查询当前角色范围内的情绪统计",
+        "responses": {
+          "200": {
+            "description": "情绪统计"
+          }
+        }
+      }
+    },
+    "/api/teacher/sessions": {
+      "get": {
+        "tags": [
+          "教师看板"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "教师授课课堂列表",
+        "responses": {
+          "200": {
+            "description": "课堂列表"
+          }
+        }
+      }
+    },
+    "/api/admin/dashboard/realtime": {
+      "get": {
+        "tags": [
+          "教师看板"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "课堂实时汇总、趋势与最新记录",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "实时课堂数据"
+          },
+          "403": {
+            "description": "课堂访问被拒绝"
+          }
+        }
+      }
+    },
+    "/ws/dashboard": {
+      "get": {
+        "tags": [
+          "教师看板"
+        ],
+        "summary": "WebSocket 实时订阅。连接后首条消息发送 {token, session_id}，之后每 5 秒推送看板数据。",
+        "responses": {
+          "101": {
+            "description": "WebSocket 升级成功"
+          }
+        }
+      }
+    },
+    "/api/admin/statistics": {
+      "get": {
+        "tags": [
+          "教师看板",
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "按课程、班级、时间和课堂聚合统计",
+        "responses": {
+          "200": {
+            "description": "多维聚合统计",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/Statistics"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "筛选参数无效或起止时间倒置"
+          },
+          "403": {
+            "description": "无权访问指定课堂"
+          }
+        },
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "class_name",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "description": "管理员可汇总全部课程；教师只汇总本人授课数据。日期统一转换为 UTC，结果可用于情绪分布、课程/班级对比和每日趋势图。"
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "用户目录",
+        "responses": {
+          "200": {
+            "description": "用户列表"
+          },
+          "403": {
+            "description": "需要管理员角色"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "put": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "修改用户角色或状态",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户已更新"
+          }
+        }
+      }
+    },
     "/api/admin/courses": {
-      "get": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "课程列表", "responses": { "200": { "description": "课程列表" } } },
-      "post": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "创建课程", "responses": { "201": { "description": "课程已创建" } } }
+      "get": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "课程列表",
+        "responses": {
+          "200": {
+            "description": "课程列表"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "创建课程",
+        "responses": {
+          "201": {
+            "description": "课程已创建"
+          }
+        }
+      }
     },
     "/api/admin/sessions": {
-      "get": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "课堂安排列表", "responses": { "200": { "description": "课堂列表" } } },
-      "post": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "创建课堂安排", "responses": { "201": { "description": "课堂已创建" } } }
+      "get": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "课堂安排列表",
+        "responses": {
+          "200": {
+            "description": "课堂列表"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "创建课堂安排",
+        "responses": {
+          "201": {
+            "description": "课堂已创建"
+          }
+        }
+      }
     },
     "/api/admin/sessions/{session_id}/schedule": {
-      "get": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "读取课堂学生名单", "parameters": [{ "name": "session_id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "学生名单" } } },
-      "post": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "安排课堂学生名单", "parameters": [{ "name": "session_id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "名单已保存" } } }
+      "get": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "读取课堂学生名单",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "学生名单"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "安排课堂学生名单",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "名单已保存"
+          }
+        }
+      }
     },
-    "/api/admin/emoji/export": { "get": { "tags": ["管理员"], "security": [{ "bearerAuth": [] }], "summary": "导出过滤后的 UTF-8 CSV（含 BOM，含公式注入防护）", "responses": { "200": { "description": "CSV 下载" } } } },
-    "/api/ai/emoji-results": { "post": { "tags": ["AI 服务"], "security": [{ "aiServiceToken": [] }], "summary": "AI 结果阈值过滤并匿名入库", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AiEmojiResult" } } } }, "responses": { "201": { "description": "AI 记录已保存" }, "200": { "description": "结果低于阈值，未入库" }, "401": { "description": "独立 AI 服务令牌无效" } } } }
+    "/api/admin/emoji/export": {
+      "get": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "导出过滤后的 UTF-8 CSV（含 BOM，含公式注入防护）",
+        "responses": {
+          "200": {
+            "description": "CSV 下载"
+          }
+        },
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "class_name",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "MANUAL",
+                "AI"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/ai/emoji-results": {
+      "post": {
+        "tags": [
+          "AI 服务"
+        ],
+        "security": [
+          {
+            "aiServiceToken": []
+          }
+        ],
+        "summary": "AI 结果阈值过滤并匿名入库",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiEmojiResult"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "AI 记录已保存"
+          },
+          "200": {
+            "description": "结果低于阈值，未入库"
+          },
+          "401": {
+            "description": "独立 AI 服务令牌无效"
+          }
+        }
+      }
+    },
+    "/api/auth/registration-options": {
+      "get": {
+        "tags": [
+          "认证"
+        ],
+        "summary": "读取首次管理员初始化是否可用",
+        "responses": {
+          "200": {
+            "description": "不返回任何密钥，仅返回是否可初始化",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "admin_bootstrap_available": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/invitations": {
+      "post": {
+        "tags": [
+          "管理员"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "签发一次性角色注册邀请码",
+        "description": "仅管理员可调用。数据库只保存哈希，明文仅在本次响应返回；响应 Cache-Control 为 no-store。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "teacher",
+                      "admin"
+                    ]
+                  },
+                  "expires_in_hours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 168,
+                    "default": 24
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "包含 id、code、role、expires_at 的邀请码信息"
+          },
+          "400": {
+            "description": "角色或有效期无效"
+          },
+          "403": {
+            "description": "需要管理员权限"
+          }
+        }
+      }
+    }
   }
 }

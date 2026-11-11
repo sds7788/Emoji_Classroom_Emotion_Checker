@@ -40,13 +40,16 @@
           <label>用户名<input id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="输入用户名"></label>
           <label>密码<input id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="8" placeholder="至少 8 位"></label>
           <div id="registerFields" hidden>
+            <label>注册身份<select id="authRole" name="role"><option value="student">学生</option><option value="teacher">教师</option><option value="admin">管理员</option></select></label>
             <label>姓名<input id="authFullName" name="full_name" autocomplete="name" placeholder="课堂中显示的姓名"></label>
             <label>邮箱（可选）<input id="authEmail" name="email" type="email" autocomplete="email" placeholder="name@example.com"></label>
+            <label id="registrationCodeField" hidden><span id="registrationCodeLabel">注册邀请码</span><input id="authRegistrationCode" type="password" autocomplete="off" maxlength="256" placeholder="填写管理员提供的邀请码"></label>
+            <p id="registrationHint" class="muted">学生可直接注册，教师与管理员需邀请码。</p>
           </div>
           <p id="authError" class="form-message" role="alert" hidden></p>
           <button id="authSubmit" class="button button-primary button-wide" type="submit">登录</button>
         </form>
-        <button id="switchAuthMode" class="text-button">还没有账号？注册学生账号</button>
+        <button id="switchAuthMode" class="text-button">还没有账号？创建账号</button>
         <div class="demo-access"><b>演示账号</b><span>学生 student · 教师 teacher · 管理员 admin</span><small>演示密码均为对应用户名 + 12345</small></div>
       </div>
     </section>
@@ -116,11 +119,37 @@
       <div id="adminOverview" class="admin-section">
         <div class="metric-grid admin-metrics">
           <article class="metric-card"><span>注册用户</span><strong id="adminUserCount">0</strong><small>学生、教师与管理员</small></article>
-          <article class="metric-card metric-positive"><span>课堂总记录</span><strong id="adminRecordCount">0</strong><small>手动与 AI 汇总</small></article>
+          <article class="metric-card metric-positive"><span>筛选范围反馈</span><strong id="adminRecordCount">0</strong><small>手动与 AI 汇总</small></article>
           <article class="metric-card metric-focus"><span>进行中课堂</span><strong id="adminActiveCount">0</strong><small>当前开放反馈</small></article>
           <article class="metric-card metric-attendance"><span>课程数量</span><strong id="adminCourseCount">0</strong><small>已创建课程</small></article>
         </div>
-        <div class="dashboard-grid"><section class="surface"><div class="section-top"><div><span class="panel-label">SCHOOL PULSE</span><h2>整体情绪分布</h2></div></div><div id="adminDistribution" class="distribution-list"></div></section><section class="surface"><div class="section-top"><div><span class="panel-label">RECENT RECORDS</span><h2>最新反馈</h2></div></div><div id="adminRecent" class="record-list"></div></section></div>
+        <section class="filter-bar surface">
+          <label>统计课程<select id="adminStatsCourseFilter" class="select-control"><option value="">全部课程</option></select></label>
+          <label>统计班级<select id="adminStatsClassFilter" class="select-control"><option value="">全部班级</option></select></label>
+          <label>统计开始日期<input id="adminStatsFromFilter" type="date" class="select-control"></label>
+          <label>统计结束日期<input id="adminStatsToFilter" type="date" class="select-control"></label>
+          <button id="adminApplyStatsFilter" class="button button-dark">更新统计</button>
+        </section>
+        <div class="dashboard-grid">
+          <section class="surface chart-surface"><div class="section-top"><div><span class="panel-label">DAILY TREND</span><h2>每日情绪变化</h2></div><span class="chart-legend"><i></i>积极 <i class="legend-focus"></i>专注 <i class="legend-concern"></i>待关注</span></div><p id="adminStatsSummary" class="muted"></p><canvas id="adminDailyTrend" height="230" aria-label="筛选范围每日情绪趋势图，单位为反馈条数"></canvas><div id="adminDailyEmpty" class="chart-empty" hidden>当前筛选范围暂无反馈</div></section>
+          <section class="surface"><div class="section-top"><div><span class="panel-label">EMOTION MIX</span><h2>筛选范围情绪分布</h2></div></div><div id="adminDistribution" class="distribution-list"></div></section>
+        </div>
+        <div class="dashboard-grid schedule-grid">
+          <section class="surface"><div class="section-top"><div><span class="panel-label">BY COURSE</span><h2>课程反馈对比</h2></div></div><div id="adminCourseBreakdown" class="breakdown-list"></div></section>
+          <section class="surface"><div class="section-top"><div><span class="panel-label">BY CLASS</span><h2>班级反馈对比</h2></div></div><div id="adminClassBreakdown" class="breakdown-list"></div></section>
+        </div>
+        <section class="surface"><div class="section-top"><div><span class="panel-label">LIVE CLASSROOM</span><h2>课堂实时看板</h2></div><span id="adminLiveUpdated" class="muted">等待数据</span></div>
+          <label class="field-label" for="adminLiveSessionSelect">实时课堂</label><select id="adminLiveSessionSelect" class="select-control"></select>
+          <p class="muted">实时看板查看所选课堂近 60 分钟数据，以上日期筛选用于历史统计。</p>
+          <div class="metric-grid live-metrics">
+            <article class="metric-card"><span>近一小时反馈</span><strong id="adminLiveTotal">0</strong><small>条情绪记录</small></article>
+            <article class="metric-card metric-positive"><span>积极感受</span><strong id="adminLivePositive">0%</strong><small>开心与兴奋</small></article>
+            <article class="metric-card metric-focus"><span>专注状态</span><strong id="adminLiveFocused">0%</strong><small>专注反馈占比</small></article>
+            <article class="metric-card metric-attendance"><span>课堂参与</span><strong id="adminLiveStudents">0</strong><small>已安排学生</small></article>
+          </div>
+          <div class="dashboard-grid"><div class="chart-surface"><div class="section-top"><h3>近 60 分钟情绪变化</h3><span class="chart-legend"><i></i>积极 <i class="legend-focus"></i>专注 <i class="legend-concern"></i>待关注</span></div><canvas id="adminLiveTrend" height="230" aria-label="所选课堂近一小时实时情绪趋势图，单位为反馈条数"></canvas><div id="adminLiveEmpty" class="chart-empty" hidden>近一小时暂无反馈</div></div><div id="adminLiveDistribution" class="distribution-list"></div></div>
+          <h3>最新课堂反馈</h3><div id="adminRecent" class="record-list"></div>
+        </section>
       </div>
       <div id="adminSchedule" class="admin-section" hidden>
         <div class="dashboard-grid schedule-grid">
@@ -148,6 +177,14 @@
         <section class="surface"><div class="section-top"><div><span class="panel-label">UPCOMING CLASSES</span><h2>课堂安排</h2></div></div><div class="table-wrap"><table><thead><tr><th>课程</th><th>班级</th><th>教室</th><th>时间</th><th>状态</th><th>人数</th></tr></thead><tbody id="adminSessionsTable"></tbody></table></div></section>
       </div>
       <div id="adminUsers" class="admin-section" hidden>
+        <section class="surface"><div class="section-top"><div><span class="panel-label">REGISTRATION INVITATION</span><h2>邀请教师或管理员注册</h2></div></div>
+          <form id="invitationForm" class="filter-bar invitation-form">
+            <label>邀请身份<select name="role" id="invitationRole"><option value="teacher">教师</option><option value="admin">管理员</option></select></label>
+            <label>有效期（小时）<input name="expires_in_hours" type="number" min="1" max="168" value="24" required></label>
+            <button class="button button-primary" type="submit">生成一次性邀请码</button>
+          </form>
+          <div id="invitationResult" hidden><label class="field-label" for="invitationCode">注册邀请码</label><input id="invitationCode" class="select-control" readonly><p id="invitationMessage" class="inline-message" role="status"></p><p class="muted">复制邀请码提供给受邀人。仅显示本次生成的明文，使用后自动失效。</p></div>
+        </section>
         <section class="surface"><div class="section-top"><div><span class="panel-label">USER DIRECTORY</span><h2>用户列表</h2></div><span class="muted">可更改角色与账号状态</span></div><div class="table-wrap"><table><thead><tr><th>姓名</th><th>用户名</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead><tbody id="usersTable"></tbody></table></div></section>
       </div>
       <div id="adminRecords" class="admin-section" hidden>

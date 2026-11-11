@@ -78,6 +78,7 @@ a { color: inherit; }
 .panel-heading h2 { margin: 10px 0 5px; font-size: 23px; }
 .panel-heading p, .muted { margin: 0; color: var(--muted); font-size: 12px; }
 .form-stack { display: grid; gap: 15px; }
+#registerFields { display: grid; gap: 15px; }
 .form-stack label, .field-label, .filter-bar label { display: grid; gap: 7px; color: #516168; font-size: 12px; font-weight: 600; }
 .form-stack input, .form-stack select, .select-control { width: 100%; min-height: 42px; padding: 9px 11px; color: #33434a; outline: none; border: 1px solid #dce5e6; border-radius: 5px; background: #fff; font-size: 13px; }
 .form-stack input:focus, .form-stack select:focus, .select-control:focus { border-color: #71aaa3; box-shadow: 0 0 0 3px rgba(8,126,120,.1); }
@@ -135,7 +136,7 @@ a { color: inherit; }
 
 .refresh-status { display: flex; align-items: center; gap: 8px; color: #839095; font-size: 11px; }
 .live-indicator { width: 7px; height: 7px; }
-.filter-bar { display: flex; align-items: flex-end; gap: 12px; padding: 14px 16px; }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 14px 16px; }
 .filter-bar label { min-width: 140px; flex: 1; }
 .filter-bar .select-control { min-height: 38px; }
 .filter-bar input[type=date] { min-width: 135px; }
@@ -176,6 +177,13 @@ tbody tr:last-child td { border-bottom: 0; }
 .admin-tab.active::after { position: absolute; right: 2px; bottom: -1px; left: 2px; height: 2px; background: var(--teal); content: ''; }
 .admin-section { display: grid; gap: 16px; }
 .admin-metrics { margin-top: 2px; }
+.live-metrics { margin: 20px 0; }
+.breakdown-list { display: grid; gap: 14px; }
+.breakdown-item { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(65px, 1.2fr) 35px; gap: 12px; align-items: center; color: #637278; font-size: 12px; }
+.breakdown-item > span:first-child { overflow-wrap: anywhere; }
+.breakdown-item b { text-align: right; }
+.invitation-form { padding: 0; margin-bottom: 18px; }
+#invitationCode { font-family: monospace; }
 .schedule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .compact-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .compact-form .button, .compact-form .inline-message { align-self: end; }

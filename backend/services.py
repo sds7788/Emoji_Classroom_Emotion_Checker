@@ -1,8 +1,64 @@
 """Business rules shared by the HTTP controllers."""
 
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from backend.database import EMOTIONS
+
+
+def register_user(db, username, password_hash, role, full_name, email, registration_code, bootstrap_token):
+    """Create an account and consume its invitation in one serialized transaction."""
+    with db.connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        invitation = None
+        if role != "student":
+            invitation = connection.execute(
+                "SELECT id FROM registration_invitations WHERE code_hash = ? AND role = ? "
+                "AND used_at IS NULL AND expires_at > ?",
+                (hashlib.sha256(registration_code.encode()).hexdigest(), role, db.now()),
+            ).fetchone()
+            bootstrap_allowed = (
+                role == "admin" and bool(bootstrap_token) and bool(registration_code)
+                and hmac.compare_digest(bootstrap_token.encode(), registration_code.encode())
+                and not connection.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1").fetchone()
+                and not connection.execute("SELECT id FROM audit_logs WHERE action = 'admin_bootstrap' LIMIT 1").fetchone()
+            )
+            if invitation is None and not bootstrap_allowed:
+                raise PermissionError("邀请码无效、已使用或已过期；管理员初始化仅限尚无管理员的数据库")
+        now = db.now()
+        cursor = connection.execute(
+            "INSERT INTO users (username, password_hash, role, full_name, email, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, password_hash, role, full_name, email, now),
+        )
+        user_id = cursor.lastrowid
+        if invitation:
+            connection.execute(
+                "UPDATE registration_invitations SET used_at = ?, used_by = ? WHERE id = ?",
+                (now, user_id, invitation["id"]),
+            )
+        connection.execute(
+            "INSERT INTO audit_logs (actor_id, action, target_type, target_id, detail, created_at) VALUES (?, 'register', 'user', ?, ?, ?)",
+            (user_id, str(user_id), f"role={role}", now),
+        )
+        if role == "admin" and invitation is None:
+            connection.execute(
+                "INSERT INTO audit_logs (actor_id, action, target_type, target_id, created_at) VALUES (?, 'admin_bootstrap', 'user', ?, ?)",
+                (user_id, str(user_id), now),
+            )
+    return user_id
+
+
+def issue_invitation(db, actor_id, role, expires_in_hours):
+    code = secrets.token_urlsafe(24)
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)).isoformat(timespec="seconds")
+    invitation_id, _ = db.execute(
+        "INSERT INTO registration_invitations (code_hash, role, created_by, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+        (hashlib.sha256(code.encode()).hexdigest(), role, actor_id, expires_at, db.now()),
+    )
+    db.audit(actor_id, "create_invitation", "invitation", invitation_id, f"role={role};expires_at={expires_at}")
+    return {"id": invitation_id, "code": code, "role": role, "expires_at": expires_at}
 
 
 def _filters(params):
@@ -17,12 +73,21 @@ def _filters(params):
     if params.get("class_name"):
         clauses.append("s.class_name = ?")
         values.append(params["class_name"])
-    if params.get("from"):
+    boundaries = {}
+    for field in ("from", "to"):
+        if params.get(field):
+            value = datetime.fromisoformat(params[field].replace("Z", "+00:00"))
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            boundaries[field] = value.astimezone(timezone.utc).isoformat(timespec="seconds")
+    if boundaries.get("from") and boundaries.get("to") and boundaries["from"] > boundaries["to"]:
+        raise ValueError("开始时间不能晚于结束时间")
+    if boundaries.get("from"):
         clauses.append("r.recorded_at >= ?")
-        values.append(params["from"])
-    if params.get("to"):
+        values.append(boundaries["from"])
+    if boundaries.get("to"):
         clauses.append("r.recorded_at <= ?")
-        values.append(params["to"])
+        values.append(boundaries["to"])
     if params.get("source") in {"MANUAL", "AI"}:
         clauses.append("r.source = ?")
         values.append(params["source"])
@@ -137,7 +202,16 @@ def statistics(db, user, params):
         f"SELECT strftime('%Y-%m-%d', r.recorded_at) AS day, r.emoji_type, COUNT(*) AS count {base} GROUP BY day, r.emoji_type ORDER BY day",
         values,
     )
-    return {"total": total, "emotions": emotion_counts, "by_session": by_session, "daily_trend": trend}
+    by_course = db.all(
+        f"SELECT c.id AS course_id, c.name AS course_name, COUNT(*) AS total {base} GROUP BY c.id ORDER BY total DESC, c.id",
+        values,
+    )
+    by_class = db.all(
+        f"SELECT s.class_name, COUNT(*) AS total {base} GROUP BY s.class_name ORDER BY total DESC, s.class_name",
+        values,
+    )
+    return {"total": total, "emotions": emotion_counts, "by_session": by_session, "daily_trend": trend,
+            "by_course": by_course, "by_class": by_class}
 
 
 def realtime_dashboard(db, session_id):

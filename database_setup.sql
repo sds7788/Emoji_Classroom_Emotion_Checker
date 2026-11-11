@@ -71,6 +71,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS registration_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code_hash TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL CHECK (role IN ('teacher', 'admin')),
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    used_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_records_session_time ON emoji_records(session_id, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_records_user_time ON emoji_records(user_id, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_course_time ON class_sessions(course_id, starts_at DESC);
